@@ -63,6 +63,40 @@ test('prompt do dev limpa o aguardando de qualquer origem', () => {
   assert.equal(firstSession([permissionNotice(3, { agent_id: 'a1' }), ev(1, 'UserPromptSubmit')]).status, 'running');
 });
 
+const toolInFlight = (minAgo: number, agentId?: string) => ev(minAgo, 'PreToolUse', { tool: 'Bash', ...(agentId ? { agent_id: agentId } : {}) });
+const agentStarted = (minAgo: number, agentId: string) => ev(minAgo, 'SubagentStart', { agent_id: agentId, agent_type: 'general-purpose' });
+
+test('aviso sem origem vai para o único agente com ferramenta em andamento', () => {
+  const events = [agentStarted(10, 'a1'), toolInFlight(9, 'a1'), permissionNotice(8)];
+  assert.equal(firstSession(events).status, 'waiting');
+  assert.equal(firstSession([...events, siblingAction(7, 'a1')]).status, 'running');
+});
+
+test('aviso sem origem com dois candidatos fica com a conversa principal', () => {
+  const events = [agentStarted(10, 'a1'), agentStarted(10, 'a2'), toolInFlight(9, 'a1'), toolInFlight(9, 'a2'), permissionNotice(8)];
+  assert.equal(firstSession([...events, siblingAction(7, 'a1'), siblingAction(6, 'a2')]).status, 'waiting');
+  assert.equal(firstSession([...events, ev(5, 'PostToolUse', { tool: 'Bash' })]).status, 'running');
+});
+
+test('aviso sem origem com ferramenta da conversa principal em andamento sai com o fim dela', () => {
+  const events = [toolInFlight(9), permissionNotice(8)];
+  assert.equal(firstSession([...events, siblingAction(7, 'a2')]).status, 'waiting');
+  assert.equal(firstSession([...events, ev(6, 'PostToolUse', { tool: 'Bash' })]).status, 'running');
+});
+
+test('aguardando expira 2 h depois do próprio aviso, mesmo com a sessão ativa', () => {
+  const events = [evAt('2026-11-12T10:00:00Z', 'Notification', { summary: 'permission_prompt: x' }), evAt('2026-11-12T11:59:00Z', 'PostToolUse', { agent_id: 'a2', tool: 'Read' })];
+  assert.equal(firstSession(events, Date.parse('2026-11-12T11:59:30Z')).status, 'waiting');
+  assert.deepEqual([firstSession(events, Date.parse('2026-11-12T12:00:30Z')).status], ['your_turn']);
+});
+
+test('idle_prompt sem Stop antes (Esc no meio da ferramenta) deixa a sessão na sua vez desde o aviso', () => {
+  const idleNotice = (minAgo: number) => ev(minAgo, 'Notification', { summary: 'idle_prompt: Claude is waiting for your input' });
+  const session = firstSession([toolInFlight(60), idleNotice(40)]);
+  assert.deepEqual([session.status, session.sinceLabel, session.statusSince, session.lastAt], ['your_turn', 'sua vez desde 11:20', at(40), at(60)]);
+  assert.equal(firstSession([toolInFlight(60), idleNotice(40), ev(5, 'UserPromptSubmit')]).status, 'running');
+});
+
 test('evento de agente sem aviso novo não vira aguardando', () => {
   assert.equal(firstSession([ev(3, 'PreToolUse', { tool: 'Bash' }), siblingAction(1, 'a2')]).status, 'running');
 });

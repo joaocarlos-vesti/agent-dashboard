@@ -117,3 +117,16 @@ Decisão do dono (topo da spec, "Stack"). Comportamento não mudou: os mesmos 13
 - **Scripts:** `dev`, `build` (`tsc --noEmit && vite build`), `typecheck`, `test` e `deploy` (copia `send.sh` para `public/`, faz o build e publica `dist/`). O deploy não foi executado.
 - **Decisões minhas:** (1) deixei de fora o `noUncheckedIndexedAccess`: o ganho não compensava os `?.` espalhados nos testes. (2) `tabIndicator` aceita `recent` opcional. (3) `weekTokens` aceita `byDay` parcial (dia sem tokens), o que já era o comportamento.
 - **Ficou de fora:** teste de componente (a tela é provisória até a F3); `send.sh` em `public/` só existe depois do `deploy` (está no `.gitignore`).
+
+## Rodada 3 — saída do aguardando e sua vez (commit `fix(painel): saída do aguardando e sua vez (F1 r3)`)
+
+Testes vermelhos primeiro (3 falharam), depois a correção em `src/lib/board.ts`. 138 testes e `tsc --noEmit` verdes.
+
+| Achado | O que foi feito |
+|---|---|
+| N1 IMPORTANTE | Aviso de espera sem `agent_id` é atribuído à origem com ferramenta sem fim (`PreToolUse` sem `PostToolUse`) naquele momento, se houver exatamente uma; com zero ou várias, à conversa principal. O aviso sai com evento dessa origem, `UserPromptSubmit`, `Stop` ou `SessionEnd`. As 2 h de expiração agora contam do próprio aviso (não do último evento da sessão), e o "sua vez desde" dessa expiração é a hora do aviso. Testes: um agente só (sai com o `PostToolUse` dele), dois candidatos (fica com a principal), ferramenta da principal em andamento, expiração com a sessão ativa. |
+| N2 IMPORTANTE | `idle_prompt` deixou de ser descartado: vale como "sua vez" quando nenhum evento de trabalho veio depois dele e o último evento não é `Stop`. A hora (`statusSince`, "sua vez desde") é a do aviso; `lastAt` segue sendo o do último evento de trabalho. Com `Stop` antes, vale o `Stop` (R2 continua: "sua vez desde 11:20"). Qualquer evento depois do aviso (ex.: `UserPromptSubmit`) volta a sessão para "rodando". |
+| N3 MENOR | Não aplicado: janela de 24 h do `useDashboard` e o "início não guardado" de sessão antiga somem com o R55 (F2). |
+
+Efeito colateral: o `idle_prompt` agora entra no corte do board, mas é removido dos eventos da sessão (tokens, marcas de dia, `lastAt`) e da semana; só o estado o enxerga.
+Pendente de medição real: se o `Notification` de um subagente traz `agent_id` (a regra do N1 cobre o caso em que não traz).

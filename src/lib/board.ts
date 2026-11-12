@@ -16,7 +16,7 @@ const WORKFLOW_TASK_START_LENGTH = 60;
 const WORKFLOW_LABEL_WORDS = 4;
 const WORKFLOW_HIDE_DONE_ABOVE = 6;
 const START_MISSING_NOTICE = 'início não guardado';
-// Avisos que significam "o trabalho parou até o dev agir"; o idle_prompt é "sua vez" e já vem do Stop.
+// Avisos que significam "o trabalho parou até o dev agir"; o idle_prompt é "sua vez" e tem regra própria.
 const WAITING_NOTIFICATION_TYPES = new Set(['permission_prompt', 'elicitation_dialog', 'agent_needs_input']);
 
 interface View {
@@ -41,21 +41,45 @@ const timeOf = (event: AgentEvent) => Date.parse(event.created_at);
 const byTime = (a: AgentEvent, b: AgentEvent) => timeOf(a) - timeOf(b);
 const notificationType = (event: AgentEvent) => event.summary?.split(':')[0];
 const isWaitingNotification = (event: AgentEvent) => event.event === 'Notification' && WAITING_NOTIFICATION_TYPES.has(notificationType(event) ?? '');
-const isRelevantEvent = (event: AgentEvent) => event.event !== 'Notification' || isWaitingNotification(event);
+const isIdleNotification = (event: AgentEvent) => event.event === 'Notification' && notificationType(event) === 'idle_prompt';
+const isRelevantEvent = (event: AgentEvent) => event.event !== 'Notification' || isWaitingNotification(event) || isIdleNotification(event);
 const isToolEvent = (event: AgentEvent) => event.event === 'PreToolUse' || event.event === 'PostToolUse';
 // O SessionStart de uma sessão retomada traz "resume" no resumo.
 const isResumeStart = (event: AgentEvent) => event.event === 'SessionStart' && event.summary === 'resume';
 
+const originOf = (event: AgentEvent) => event.agent_id ?? null;
+
 // Um aviso de espera só sai com evento da mesma origem (agente ou conversa principal), prompt do dev, fim de resposta ou fim da sessão.
-const clearsWaiting = (event: AgentEvent, notice: AgentEvent) =>
-  ['UserPromptSubmit', 'Stop', 'SessionEnd'].includes(event.event) || (event.agent_id ?? null) === (notice.agent_id ?? null);
+const clearsWaiting = (event: AgentEvent, owner: string | null) =>
+  ['UserPromptSubmit', 'Stop', 'SessionEnd'].includes(event.event) || originOf(event) === owner;
+
+// Aviso sem agent_id é do único agente com ferramenta em andamento; com zero ou vários candidatos, da conversa principal.
+function ownerOfNotice(notice: AgentEvent, originsWithToolInFlight: Set<string | null>): string | null {
+  if (notice.agent_id) return notice.agent_id;
+  return originsWithToolInFlight.size === 1 ? [...originsWithToolInFlight][0] ?? null : null;
+}
 
 function pendingWaitingOf(events: AgentEvent[]): AgentEvent | null {
+  const originsWithToolInFlight = new Set<string | null>();
   let notice: AgentEvent | null = null;
+  let owner: string | null = null;
   for (const event of events) {
-    if (isWaitingNotification(event)) notice = event;
-    else if (notice && clearsWaiting(event, notice)) notice = null;
+    if (isWaitingNotification(event)) {
+      notice = event;
+      owner = ownerOfNotice(event, originsWithToolInFlight);
+    } else if (notice && clearsWaiting(event, owner)) notice = null;
+    if (isToolEvent(event)) {
+      if (event.event === 'PreToolUse') originsWithToolInFlight.add(originOf(event));
+      else originsWithToolInFlight.delete(originOf(event));
+    }
   }
+  return notice;
+}
+
+// idle_prompt vale como "sua vez" só se nenhum evento de trabalho veio depois (ex.: Esc no meio de uma ferramenta, que não gera Stop).
+function pendingIdleOf(events: AgentEvent[]): AgentEvent | null {
+  let notice: AgentEvent | null = null;
+  for (const event of events) notice = isIdleNotification(event) ? event : null;
   return notice;
 }
 
@@ -71,23 +95,26 @@ function hasWorkInProgress(events: AgentEvent[]): boolean {
 }
 
 function sessionStateAt(events: AgentEvent[], now: number, timeZone: string | undefined): SessionState | null {
-  const lastEvent = events.at(-1);
+  const workEvents = events.filter((event) => !isIdleNotification(event));
+  const lastEvent = workEvents.at(-1);
   if (!lastEvent) return null;
-  const lastAt = timeOf(lastEvent);
-  const silentMs = now - lastAt;
+  const silentMs = now - timeOf(lastEvent);
   const state = (status: SessionStatus, extra: Partial<SessionState> = {}): SessionState => ({
     status, recent: false, sinceLabel: null, statusSince: lastEvent.created_at, waitingReason: null, ...extra,
   });
+  const yourTurnSince = (sinceEvent: AgentEvent) => {
+    const recent = now - timeOf(sinceEvent) <= YOUR_TURN_RECENT_MS;
+    const sinceLabel = recent ? `terminou ${formatRelativeTime(sinceEvent.created_at, now)}` : `sua vez desde ${clockTime(timeOf(sinceEvent), timeZone)}`;
+    return state('your_turn', { recent, sinceLabel, statusSince: sinceEvent.created_at });
+  };
   if (lastEvent.event === 'SessionEnd') return state('ended');
-  const waitingNotice = pendingWaitingOf(events);
-  const waitingExpired = waitingNotice && silentMs > WAITING_EXPIRES_AFTER_MS;
-  if (lastEvent.event === 'Stop' || waitingExpired) {
-    const recent = silentMs <= YOUR_TURN_RECENT_MS;
-    const sinceLabel = recent ? `terminou ${formatRelativeTime(lastEvent.created_at, now)}` : `sua vez desde ${clockTime(lastAt, timeZone)}`;
-    return state('your_turn', { recent, sinceLabel });
-  }
+  const waitingNotice = pendingWaitingOf(workEvents);
+  if (waitingNotice && now - timeOf(waitingNotice) > WAITING_EXPIRES_AFTER_MS) return yourTurnSince(waitingNotice);
+  if (lastEvent.event === 'Stop') return yourTurnSince(lastEvent);
   if (waitingNotice) return state('waiting', { statusSince: waitingNotice.created_at, waitingReason: notificationType(waitingNotice) ?? null });
-  if (silentMs > (hasWorkInProgress(events) ? STALE_WITH_WORK_IN_PROGRESS_MS : STALE_AFTER_MS)) return state('stale');
+  const idleNotice = pendingIdleOf(events);
+  if (idleNotice) return yourTurnSince(idleNotice);
+  if (silentMs > (hasWorkInProgress(workEvents) ? STALE_WITH_WORK_IN_PROGRESS_MS : STALE_AFTER_MS)) return state('stale');
   return state('running', silentMs > STALE_AFTER_MS ? { sinceLabel: `rodando ${formatRelativeTime(lastEvent.created_at, now)}` } : {});
 }
 
@@ -186,11 +213,12 @@ function newWorkflow(event: AgentEvent): Workflow {
 }
 
 function buildSession(allEvents: AgentEvent[], view: View): Session | null {
-  const sessionEvents = view.frozen ? allEvents.filter((event) => timeOf(event) <= view.now) : allEvents;
+  const eventsInView = view.frozen ? allEvents.filter((event) => timeOf(event) <= view.now) : allEvents;
+  const sessionEvents = eventsInView.filter((event) => !isIdleNotification(event));
   const firstEvent = sessionEvents[0];
   const lastEvent = sessionEvents.at(-1);
   if (!firstEvent || !lastEvent) return null;
-  const state = sessionStateAt(sessionEvents, view.now, view.timeZone);
+  const state = sessionStateAt(eventsInView, view.now, view.timeZone);
   if (!state) return null;
 
   const workflows: Workflow[] = [];
@@ -266,7 +294,7 @@ function buildSession(allEvents: AgentEvent[], view: View): Session | null {
     startMissingNotice: startMissing ? START_MISSING_NOTICE : null,
     startedAt,
     endedAt: lastEvent.event === 'SessionEnd' ? lastEvent.created_at : null,
-    ...dayMarks(sessionEvents, allEvents, startedAt, startMissing, view),
+    ...dayMarks(sessionEvents, allEvents.filter((event) => !isIdleNotification(event)), startedAt, startMissing, view),
     tokens,
     lastAt: lastEvent.created_at,
     workflows,
@@ -337,7 +365,7 @@ export function buildBoard(events: AgentEvent[], now: number = Date.now(), optio
 
 /** Tokens de cada um dos 7 dias do seletor, somando por evento todas as sessões carregadas (inclusive as que o mapa do dia esconde). */
 export function buildWeekTokens(events: AgentEvent[], now: number, timeZone: string | undefined) {
-  const ordered = events.filter(isRelevantEvent).sort(byTime);
+  const ordered = events.filter((event) => isRelevantEvent(event) && !isIdleNotification(event)).sort(byTime);
   const sessions = [...groupBy(ordered, (event) => `${event.login}/${event.session_id}`).values()].map((sessionEvents) => ({
     tokens: sessionTokens(sessionEvents, { timeZone, startMissing: sessionEvents[0] ? isStartMissing(sessionEvents[0]) : false }),
   }));
