@@ -2,6 +2,8 @@
 
 **Aprovado:** 2026-11-12 — usuário: "1 - sim 2 - ok 3 - Tudo bem 4 - oK.... 5 - Ok 6 - Ok 7 - Ok 8 - Ok"
 
+**Stack (12/11/2026):** o dono pediu React + TypeScript. Aceitas as sugestões: Vite + React + TypeScript, testes em Vitest; a F1 (JS) é convertida num passo próprio (F1b) com os mesmos testes; React Flow para posição e linhas do mapa, cards no visual do protótipo.
+
 **Respostas (valem sobre qualquer linha "pergunta" das matrizes):**
 1. "Aguardando você" = pedido de permissão e pergunta direta ao dev; ociosidade (`idle_prompt`) = "sua vez".
 2. Acumulado da conversa que cai (compactar/limpar): a base recomeça daquele ponto, somando o já gasto; nunca negativo.
@@ -388,6 +390,8 @@ Medido em 12/11: todo evento traz `cwd`, inclusive o de início; `--continue`/`-
 Seguem supostos: formato real do `Notification`; identificador da sessão na nuvem para "Abrir a sessão".
 
 ## Andamento
-- 12/11/2026: base da v1 (dados) commitada na `main` em `0664126` (sem push) e publicada; `002_v1.sql` rodado pelo dono. Branch `feat/mapa-vivo-v2-2`; design em `docs/design/`.
-- Etapa A concluída: matriz (R1–R82, T1–T64), plano em 4 fases, revisão do plano aplicada.
-- Spec aprovada (respostas acima). Fase 1 em andamento.
+- 12/11/2026: base da v1 em `0664126` (main, sem push) e publicada; `002_v1.sql` rodado. Branch `feat/mapa-vivo-v2-2`.
+- Spec aprovada (`c335f45`). Stack trocada para Vite + React + TS (pedido do dono).
+- **F1 aprovada** em 4 rodadas (bateria + lógica): `a1a7795` regras; `b5b8023` correções r1; `29f5acd` conversão Vite/React/TS; `7667567` saída do aguardando/sua vez; `90dda2f` aviso sem agente ignora a ferramenta Agent. 140 testes.
+- Pendente com o dono: resultado da consulta dos avisos `Notification` (saber se trazem `agent_id`).
+- Próximo: F2 (consultas por dia/sessão, branch e origem do início no hook, migration 003, N3/R55, resultado cortado em 160 caracteres).
