@@ -1,22 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { buildBoard } from './board.js';
-import { formatTokens, pageTitle } from './format.js';
+import { buildBoard, allSessionsOf } from './board.js';
+import { formatTokens, formatRelativeTime, folderName, tabIndicator } from './format.js';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const root = document.getElementById('root');
 const HISTORY_HOURS = 24;
-const STATUS_LABEL = { running: 'rodando', done: 'concluído', idle: 'aguardando você', stale: 'sem sinal', ended: 'encerrada' };
+const STATUS_LABEL = { running: 'rodando', done: 'concluído', waiting: 'aguardando você', your_turn: 'sua vez', stale: 'sem sinal', ended: 'encerrada' };
 let loadedEvents = [];
 
 const escapeHtml = (text) => String(text ?? '').replace(/[&<>"]/g, (char) => `&#${char.charCodeAt(0)};`);
 const badge = (status) => `<span class="badge ${status}">${STATUS_LABEL[status]}</span>`;
-const minutesAgo = (iso) => {
-  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000);
-  return minutes < 1 ? 'agora' : minutes < 60 ? `há ${minutes} min` : `há ${Math.round(minutes / 60)} h`;
-};
+const minutesAgo = (iso) => formatRelativeTime(iso, Date.now());
 const WAITING_REASON_LABEL = { permission_prompt: 'esperando permissão', idle_prompt: 'ocioso', elicitation_dialog: 'tem uma pergunta para você', agent_needs_input: 'um agente precisa de você' };
-const projectName = (cwd) => cwd?.split('/').filter(Boolean).at(-1) ?? 'sessão';
+const projectName = (cwd) => folderName(cwd) ?? 'sessão';
 
 const agentDetail = (agent) => {
   if (agent.status === 'done') return `→ ${agent.result ?? ''}`;
@@ -25,8 +22,8 @@ const agentDetail = (agent) => {
 };
 const agentTokensHtml = (agent) => (agent.tokens ? `<div class="muted">${formatTokens(agent.tokens.primary)} tokens</div>` : '');
 
-const agentHtml = (agent, index) => `
-  <div class="row"><span class="grow">${escapeHtml(agent.task ?? `${agent.type} ${index + 1}`)}</span>${badge(agent.status)}</div>
+const agentHtml = (agent) => `
+  <div class="row"><span class="grow">${escapeHtml(agent.task ?? agent.label)}</span>${badge(agent.status)}</div>
   <div class="muted grow">${escapeHtml(agentDetail(agent))}</div>${agentTokensHtml(agent)}`;
 
 const workflowHtml = (workflow) => `
@@ -44,9 +41,9 @@ const sessionHtml = (session) => `
 
 function render() {
   const board = buildBoard(loadedEvents);
-  document.title = pageTitle(board.flatMap((person) => person.sessions).filter((session) => session.status === 'idle').length);
+  document.title = tabIndicator(allSessionsOf(board)).title;
   root.innerHTML = board.length
-    ? `<main>${board.map((person) => `<section class="card"><h2>${escapeHtml(person.login)}</h2>${person.sessions.map(sessionHtml).join('')}</section>`).join('')}</main>`
+    ? `<main>${board.map((person) => `<section class="card"><h2>${escapeHtml(person.login)}</h2>${allSessionsOf([person]).map(sessionHtml).join('')}</section>`).join('')}</main>`
     : `<div class="notice">Nenhum agente ativo nas últimas ${HISTORY_HOURS} horas.
         <p class="muted">Ainda não conectou? Clique em <b>Conectar meu Claude Code</b> no topo.</p></div>`;
 }
