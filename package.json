@@ -10,7 +10,13 @@
     "deploy": "cp hook/send.sh public/send.sh && npm run build && cp -r web/.vercel dist/.vercel && cd dist && npx --yes vercel deploy --prod --yes"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@fortawesome/fontawesome-svg-core": "^7.3.1",
+    "@fortawesome/free-solid-svg-icons": "^7.3.1",
+    "@fortawesome/react-fontawesome": "^3.5.0",
     "@supabase/supabase-js": "^2.119.0",
+    "@xyflow/react": "^12.12.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

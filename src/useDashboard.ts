@@ -1,28 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session as AuthSession } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { BROWSER_TIME_ZONE } from './config';
 import { supabaseEventSource } from './eventSource';
 import { localDay } from './lib/day';
 import { loadDayEvents, loadSessionEvents, mergeEvents } from './lib/queries';
+import type { Access } from './lib/screen-state';
 import type { AgentEvent } from './lib/types';
 
-export type Access = 'loading' | 'signed_out' | 'no_access' | 'member';
+export type { Access };
 
-const BROWSER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const CLOCK_TICK_MS = 30000;
 
-/** `viewedDay` (AAAA-MM-DD no fuso do navegador); sem ele, o dia de hoje. */
+interface PastDay { day: string; events: AgentEvent[]; error: string | null }
+
+const errorText = (error: unknown) => (error instanceof Error ? error.message : 'erro desconhecido');
+
+/** `viewedDay` (AAAA-MM-DD no fuso do navegador); sem ele, o dia de hoje. Hoje fica sempre carregado: quem espera você é de agora, mesmo olhando outro dia. */
 export function useDashboard(viewedDay?: string) {
   const [authSession, setAuthSession] = useState<AuthSession | null | undefined>(undefined);
   const [isMember, setIsMember] = useState<boolean | null>(null);
-  const [events, setEvents] = useState<AgentEvent[]>([]);
+  const [todayEvents, setTodayEvents] = useState<AgentEvent[]>([]);
+  const [isTodayLoaded, setIsTodayLoaded] = useState(false);
+  const [todayError, setTodayError] = useState<string | null>(null);
+  const [pastDay, setPastDay] = useState<PastDay | null>(null);
+  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [isLive, setIsLive] = useState(true);
-  const [historyError, setHistoryError] = useState<string | null>(null);
   const latestLoad = useRef(0);
   const knownSessions = useRef(new Set<string>());
   const sessionHistories = useRef(new Map<string, Promise<AgentEvent[]>>());
   const [now, setNow] = useState(() => Date.now());
   const userId = authSession?.user.id;
+  const todayKey = localDay(now, BROWSER_TIME_ZONE);
+  const isPastView = viewedDay !== undefined && viewedDay < todayKey;
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((_authEvent, nextSession) => setAuthSession(nextSession));
@@ -35,22 +46,32 @@ export function useDashboard(viewedDay?: string) {
     void supabase.rpc('is_member').then(({ data: hasAccess }) => setIsMember(hasAccess === true));
   }, [userId]);
 
-  const loadHistory = useCallback(async () => {
+  const loadToday = useCallback(async () => {
     const loadId = ++latestLoad.current;
     try {
-      const dayEvents = await loadDayEvents(supabaseEventSource, viewedDay ?? localDay(Date.now(), BROWSER_TIME_ZONE), BROWSER_TIME_ZONE);
+      const dayEvents = await loadDayEvents(supabaseEventSource, localDay(Date.now(), BROWSER_TIME_ZONE), BROWSER_TIME_ZONE);
       if (loadId !== latestLoad.current) return;
       knownSessions.current = new Set(dayEvents.map((event) => event.session_id));
-      setEvents(dayEvents);
-      setHistoryError(null);
+      setTodayEvents(dayEvents);
+      setIsTodayLoaded(true);
+      setTodayError(null);
+      setLastUpdateAt(Date.now());
     } catch (error) {
-      if (loadId === latestLoad.current) setHistoryError(error instanceof Error ? error.message : 'erro desconhecido');
+      if (loadId === latestLoad.current) setTodayError(errorText(error));
     }
-  }, [viewedDay]);
+  }, []);
+
+  useEffect(() => {
+    if (!isMember || !viewedDay || !isPastView) return;
+    let cancelled = false;
+    loadDayEvents(supabaseEventSource, viewedDay, BROWSER_TIME_ZONE)
+      .then((events) => !cancelled && setPastDay({ day: viewedDay, events, error: null }))
+      .catch((error: unknown) => !cancelled && setPastDay({ day: viewedDay, events: [], error: errorText(error) }));
+    return () => { cancelled = true; };
+  }, [isMember, viewedDay, isPastView, retryCount]);
 
   // Evento ao vivo de sessão que a tela não tem: busca o resto da sessão antes de mostrar, senão o início, os tokens e as marcas de dia saem errados.
   const showLiveEvent = useCallback(async (insertedEvent: AgentEvent) => {
-    if (viewedDay && viewedDay !== localDay(Date.now(), BROWSER_TIME_ZONE)) return;
     const { session_id: sessionId } = insertedEvent;
     let history = sessionHistories.current.get(sessionId);
     if (!history && !knownSessions.current.has(sessionId)) {
@@ -64,8 +85,9 @@ export function useDashboard(viewedDay?: string) {
       void history.then(() => sessionHistories.current.delete(sessionId));
     }
     const sessionHistory = history ? await history : [];
-    setEvents((current) => mergeEvents(current, [...sessionHistory, insertedEvent]));
-  }, [viewedDay]);
+    setTodayEvents((current) => mergeEvents(current, [...sessionHistory, insertedEvent]));
+    setLastUpdateAt(Date.now());
+  }, []);
 
   useEffect(() => {
     if (!isMember) return;
@@ -73,19 +95,30 @@ export function useDashboard(viewedDay?: string) {
       .on<AgentEvent>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, ({ new: insertedEvent }) => void showLiveEvent(insertedEvent))
       .subscribe((channelStatus) => {
         setIsLive(channelStatus === 'SUBSCRIBED');
-        if (channelStatus === 'SUBSCRIBED') void loadHistory();
+        if (channelStatus === 'SUBSCRIBED') void loadToday();
       });
     const clock = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
     return () => {
       clearInterval(clock);
       void supabase.removeChannel(channel);
     };
-  }, [isMember, loadHistory, showLiveEvent]);
+  }, [isMember, loadToday, showLiveEvent]);
 
+  const retry = useCallback(() => {
+    setRetryCount((count) => count + 1);
+    void loadToday();
+  }, [loadToday]);
+
+  const shownPastDay = pastDay?.day === viewedDay ? pastDay : null;
   const access: Access = authSession === undefined ? 'loading' : !authSession ? 'signed_out' : isMember === null ? 'loading' : isMember ? 'member' : 'no_access';
   const signIn = () => supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: window.location.origin } });
   const signOut = () => supabase.auth.signOut();
   const userName: string | null = authSession?.user.user_metadata.user_name ?? null;
 
-  return { access, userName, events, isLive, historyError, now, signIn, signOut };
+  return {
+    access, userName, isLive, now, lastUpdateAt, todayEvents, retry, signIn, signOut,
+    events: isPastView ? shownPastDay?.events ?? [] : todayEvents,
+    isLoadingDay: isPastView ? shownPastDay === null : !isTodayLoaded && todayError === null,
+    historyError: isPastView ? shownPastDay?.error ?? null : todayError,
+  };
 }

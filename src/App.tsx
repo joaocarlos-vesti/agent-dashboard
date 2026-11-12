@@ -1,42 +1,61 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BoardView } from './BoardView';
+import { useState } from 'react';
+import { AttentionStrip } from './components/chrome/AttentionStrip';
+import { FrozenBanner } from './components/chrome/FrozenBanner';
+import { Header } from './components/chrome/Header';
+import { ScreenMessage } from './components/chrome/ScreenMessage';
+import { DetailPanel } from './components/detail/DetailPanel';
+import { Gauge } from './components/gauge/Gauge';
+import { MapView } from './components/map/MapView';
 import { ConnectPanel } from './ConnectPanel';
-import { buildBoard } from './lib/board';
-import { tabIndicator } from './lib/format';
-import { useDashboard } from './useDashboard';
+import { useDashboardView } from './hooks/useDashboardView';
+
+const OFFLINE_TEXT = 'Sem conexão com o servidor. Os dados podem estar desatualizados.';
 
 export function App() {
-  const { access, userName, events, isLive, historyError, now, signIn, signOut } = useDashboard();
+  const view = useDashboardView();
+  const { dashboard, ui, header, strip, gauge, detail, screen, scene, actions } = view;
   const [isConnecting, setIsConnecting] = useState(false);
-  const board = useMemo(() => buildBoard(events, now), [events, now]);
-
-  useEffect(() => {
-    document.title = tabIndicator(board.flatMap((person) => person.sessions)).title;
-  }, [board]);
+  const showConnect = isConnecting && dashboard.userName;
 
   return (
-    <>
-      {access === 'member' && !isLive && <div id="offline">Sem conexão com o servidor. Os dados podem estar desatualizados.</div>}
-      <header>
-        <h1>Painel de agentes</h1>
-        {userName && <span className="muted">{userName}</span>}
-        <span>
-          {access === 'signed_out' && <button onClick={signIn}>Entrar com GitHub</button>}
-          {userName && (
-            <>
-              <button onClick={() => setIsConnecting(true)}>Conectar meu Claude Code</button> <button onClick={signOut}>Sair</button>
-            </>
-          )}
-        </span>
-      </header>
-      {isConnecting && userName ? <ConnectPanel onBack={() => setIsConnecting(false)} /> : (
+    <div className="app">
+      {dashboard.access === 'member' && !dashboard.isLive && <div className="offline-banner" role="alert">{OFFLINE_TEXT}</div>}
+      <Header
+        model={header}
+        access={dashboard.access}
+        userName={dashboard.userName}
+        isLive={dashboard.isLive}
+        onGoToWaiting={actions.goToWaiting}
+        onSelectDay={actions.selectDay}
+        onConnect={() => setIsConnecting(true)}
+        onSignIn={dashboard.signIn}
+        onSignOut={dashboard.signOut}
+      />
+      {showConnect ? <div className="app__scroll"><ConnectPanel onBack={() => setIsConnecting(false)} /></div> : (
         <>
-          {access === 'signed_out' && <div className="notice">Entre com a sua conta do GitHub para ver o painel.</div>}
-          {access === 'no_access' && <div className="notice">Seu usuário ainda não tem acesso. Peça para alguém do time incluir você.</div>}
-          {access === 'member' && historyError && <div className="notice">Não foi possível carregar suas sessões: {historyError}. Confira a internet e recarregue a página.</div>}
-          {access === 'member' && !historyError && <BoardView board={board} now={now} />}
+          {header.frozen && <FrozenBanner banner={header.frozen} onBackToLive={actions.backToLive} />}
+          {screen.kind === 'ready' && <AttentionStrip strip={strip} onSelectChip={actions.selectChip} />}
+          <div className="app__main">
+            {screen.kind === 'ready' ? (
+              <>
+                <MapView
+                  scene={scene}
+                  orientation={view.layoutMode.orientation}
+                  selectedId={ui.selectedId}
+                  focusNonce={ui.focusNonce}
+                  frozen={view.pastDay}
+                  onActivateCard={actions.activateCard}
+                  onToggleGroup={actions.toggleGroup}
+                  onShowAllAgents={actions.showAllAgents}
+                  onCollapseAll={actions.collapseAll}
+                />
+                <Gauge model={gauge} openPanel={ui.gauge} onTogglePanel={actions.toggleGauge} onSelectDay={actions.selectDay} />
+                {view.isPanelShown && <DetailPanel model={detail} mode={view.layoutMode.panel} onClose={actions.closeDetail} onToggleTask={actions.toggleTask} onSelectChild={actions.selectWithReveal} />}
+              </>
+            ) : <ScreenMessage state={screen} onRetry={dashboard.retry} onSignIn={dashboard.signIn} />}
+          </div>
         </>
       )}
-    </>
+    </div>
   );
 }
