@@ -72,3 +72,8 @@ Decisão do condutor, **`PermissionRequest` como fonte oficial de "aguardando vo
 - Testes: hook (2), board (3 do PermissionRequest + 2 de evento desconhecido).
 
 O dono precisa rodar (além do que já estava): a 003 ficou maior (as duas RPCs novas); rodar o `003_week_tokens.sql` de novo (agora checa as sessões abertas também) e conferir `max-rows`.
+
+## Rodada 3 — menores da revisão r2 (`fix(painel): menores da revisão da F2`)
+- N1: o teste SQL das sessões abertas compara com `is distinct from` (zero linhas não passa mais calado).
+- N2: falha na busca da sessão do evento ao vivo registra `console.error` com a causa.
+- N3 (risco a acompanhar, sem código): sessão encerrada sem `SessionEnd` (terminal fechado) conta como aberta por até 7 dias, e a carga do dia traz o histórico inteiro de cada uma. Medir o tempo da primeira carga real.

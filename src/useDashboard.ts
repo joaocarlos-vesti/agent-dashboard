@@ -55,7 +55,8 @@ export function useDashboard(viewedDay?: string) {
     let history = sessionHistories.current.get(sessionId);
     if (!history && !knownSessions.current.has(sessionId)) {
       knownSessions.current.add(sessionId);
-      history = loadSessionEvents(supabaseEventSource, sessionId).catch(() => {
+      history = loadSessionEvents(supabaseEventSource, sessionId).catch((error: unknown) => {
+        console.error('Não foi possível carregar o início da sessão; o evento aparece sozinho até a próxima carga.', error);
         knownSessions.current.delete(sessionId);
         return [];
       });

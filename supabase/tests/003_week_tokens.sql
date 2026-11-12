@@ -53,7 +53,7 @@ begin
   if actual ? '2026-11-09' or not actual ? '2026-11-12' then raise exception 'janela de 7 dias: veio %', actual; end if;
 
   -- Abertas antes de 12/11 00:00 em São Paulo (03:00 UTC): A (sem SessionEnd), B, C e E; D terminou e F começou depois.
-  if (select array_agg(o.session_id order by o.session_id) from open_sessions_of('teste-semana', '2026-11-12 03:00+00') o) <> array['A', 'B', 'C', 'E'] then
+  if (select array_agg(o.session_id order by o.session_id) from open_sessions_of('teste-semana', '2026-11-12 03:00+00') o) is distinct from array['A', 'B', 'C', 'E'] then
     raise exception 'sessões abertas: veio %', (select array_agg(o.session_id order by o.session_id) from open_sessions_of('teste-semana', '2026-11-12 03:00+00') o);
   end if;
 
