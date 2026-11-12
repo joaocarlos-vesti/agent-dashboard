@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel de agentes</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --text:#e6e8ee; --muted:#8b93a7;
+          --run:#4f9cff; --done:#3ecf8e; --idle:#e3b341; --stale:#8b93a7; --ended:#5c6375; }
+  * { box-sizing:border-box } body { margin:0; font:14px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--text) }
+  header { display:flex; gap:12px; align-items:center; padding:12px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap }
+  header h1 { font-size:16px; margin:0; flex:1 }
+  button { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 12px; cursor:pointer; font:inherit }
+  main { padding:20px; display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)) }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px }
+  .card h2 { font-size:15px; margin:0 0 10px }
+  .session { border-top:1px solid var(--line); padding:10px 0 }
+  .row { display:flex; gap:8px; align-items:baseline }
+  .row .grow { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .muted { color:var(--muted); font-size:12px }
+  .tree { margin:6px 0 0 14px; border-left:1px solid var(--line); padding-left:10px }
+  .badge { font-size:11px; padding:1px 7px; border-radius:99px; border:1px solid currentColor; white-space:nowrap }
+  .running{color:var(--run)} .done{color:var(--done)} .idle{color:var(--idle)} .stale{color:var(--stale)} .ended{color:var(--ended)}
+  .notice { margin:20px; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:10px }
+  #offline { display:none; background:#5a2a2a; padding:6px 20px }
+  code, pre { background:#0b0d11; border-radius:6px; padding:2px 6px } pre { padding:10px; overflow:auto }
+  @media (max-width:420px){ main { grid-template-columns:1fr; padding:12px } }
+</style>
+</head>
+<body>
+<div id="offline">Sem conexão com o servidor. Os dados podem estar desatualizados.</div>
+<header><h1>Painel de agentes</h1><span id="who" class="muted"></span><span id="actions"></span></header>
+<div id="root"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
