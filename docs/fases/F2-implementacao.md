@@ -77,3 +77,10 @@ O dono precisa rodar (além do que já estava): a 003 ficou maior (as duas RPCs 
 - N1: o teste SQL das sessões abertas compara com `is distinct from` (zero linhas não passa mais calado).
 - N2: falha na busca da sessão do evento ao vivo registra `console.error` com a causa.
 - N3 (risco a acompanhar, sem código): sessão encerrada sem `SessionEnd` (terminal fechado) conta como aberta por até 7 dias, e a carga do dia traz o histórico inteiro de cada uma. Medir o tempo da primeira carga real.
+
+## Rodada 4 — semana sem dias zerados (`fix(painel): semana sem dias zerados`)
+O dono rodou a 003 e o teste manual falhou: vinha também `"2026-11-10": 0` (o primeiro `Stop` da sessão B, retomada, só vira base e dava uma linha com zero). Decisão: dia cuja soma de tokens é zero não entra no resultado.
+- `supabase/migrations/004_semana_sem_dias_zerados.sql` (novo): `create or replace` de `week_tokens_of` com `having` soma > 0. A 003 não foi editada (já aplicada). `schema.sql` espelha.
+- O caso UTC do teste também seria afetado (o mesmo `Stop` cai no dia 10 UTC); os dois casos esperam agora só os dias com tokens, como já estava escrito.
+- JS: sem mudança. `weekTokensFromRows` já trata dia sem linha como zero (teste `semana do banco vira lista por dia…` cobre o dia 10 ausente) e a semana do navegador lista os 7 dias com zero; a tela mostra o mesmo.
+- SQL não executado por mim; o dono roda a 004 e depois repete `supabase/tests/003_week_tokens.sql`.

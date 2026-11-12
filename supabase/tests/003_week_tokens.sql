@@ -1,4 +1,4 @@
--- Teste manual do my_week_tokens (R57). Rodar no SQL Editor DEPOIS da migration 003.
+-- Teste manual do my_week_tokens (R57). Rodar no SQL Editor DEPOIS das migrations 003 e 004.
 -- Tudo roda numa transação que termina em ROLLBACK: nenhum evento de teste fica no banco.
 -- Se algo estiver errado, o bloco falha com a linha "esperado X, veio Y"; se passar, mostra "OK".
 begin;
@@ -33,7 +33,7 @@ do $$
 declare
   actual jsonb;
 begin
-  -- São Paulo. Dia 12: A (160k - 100k) + agente 10k = 70k. Dia 11: A 100k + B (520k - 500k) = 120k. Dia 9: C = 175k.
+  -- Dia sem tokens (o 10, onde só há a base da sessão B) não aparece. São Paulo. Dia 12: A (160k - 100k) + agente 10k = 70k. Dia 11: A 100k + B (520k - 500k) = 120k. Dia 9: C = 175k.
   select coalesce(jsonb_object_agg(w.day::text, w.input_tokens + w.output_tokens), '{}') into actual
     from week_tokens_of('teste-semana', 'America/Sao_Paulo', '2026-11-12 15:00+00') w;
   if actual <> '{"2026-11-12": 70000, "2026-11-11": 120000, "2026-11-09": 175000}'::jsonb then

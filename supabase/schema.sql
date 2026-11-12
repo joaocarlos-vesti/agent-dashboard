@@ -122,6 +122,7 @@ language sql stable security definer set search_path = public as $$
   from by_day d
   where d.day between (p_now at time zone p_time_zone)::date - 6 and (p_now at time zone p_time_zone)::date
   group by d.day
+  having sum(d.input_tokens) + sum(d.output_tokens) + sum(d.cache_creation_tokens) + sum(d.cache_read_tokens) > 0
   order by d.day desc
 $$;
 
