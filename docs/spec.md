@@ -168,6 +168,13 @@ O ritmo de 10 min, as barras de chamadas e a semana por dia esticam o "sem gráf
 - **Retomada:** `--continue` e `--resume` mantêm o identificador (medido com `claude -p`).
 - **% do plano:** existe internamente (usado pelo `/usage`), mas não chega aos gatilhos. Só por uma rota não oficial (v2).
 
+### Medido em 12/11/2026 (sessão real, modo manual)
+- `PermissionRequest` dispara em todo pedido de permissão, da conversa principal e de agente; é a fonte de "aguardando você".
+- O pedido feito por agente chega **sem `agent_id`** (no `PermissionRequest` e no `Notification`): a atribuição por ferramenta em andamento continua necessária.
+- `Notification` com `permission_prompt` disparou só uma vez, ~6 s após o primeiro pedido: apoio, não fonte.
+- `SessionStart` real chegou com `summary` nulo: causa era o `send.sh` instalado na máquina, antigo; o do repositório grava a origem (`startup`). Corrige-se com deploy e rodando o comando de conexão de novo.
+- A tela Conectar consulta `my_connection_status()` (migração 005) e só gera chave por botão com confirmação, porque `create_my_key()` apaga a chave anterior.
+
 ### A confirmar
 - O formato exato do aviso de permissão (`Notification`) no primeiro uso real.
 - ~~`--continue` no terminal interativo.~~ Medido 12/11: `--continue`/`--resume` mantêm o `session_id`; o `SessionStart` traz `source: "resume"`.

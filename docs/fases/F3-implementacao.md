@@ -68,3 +68,20 @@ Faíscas e pulsos, anel girando, animações de entrada/conclusão, relógio de 
 1. T30: a spec não define a marca de nuvem. O ícone existe, mas `cloudSessionIds` está vazio porque o dado não chega do hook; hoje toda sessão aparece como terminal.
 2. Texto "1 ações em 10 min" no painel (singular errado) vem de `detail-model` (`totalLabel`); corrigir junto com a F4 se o dono concordar com a redação.
 3. Botões "A mesma sessão continua hoje" / "Ver o que veio antes" do protótipo (T29) não entraram no painel: a spec não os pede e o modelo do painel não os traz.
+
+## Rodada 2
+
+Revisão: `docs/fases/revisoes/` (r1 da F3). Verificações: `npm test` 20 arquivos, 371 testes verdes; `npx tsc --noEmit` limpo; `npx vite build` ok.
+
+| Achado | O que foi feito |
+|---|---|
+| BLOQUEANTE: Conectar gerava chave ao abrir (T58) | A tela só consulta o estado, pela RPC nova `my_connection_status()` (`supabase/migrations/005_estado_da_conexao.sql`, também em `schema.sql`). Chave nova só por botão, com confirmação quando já há conexão; depois mostra o comando. A geração sai de um clique com trava (`isGenerating`), nunca de efeito, então o modo estrito do React não gera duas vezes. Regra em `src/lib/connect-flow.ts` (13 testes, vermelho visto antes), hook em `useConnectPanel.ts`. T58 coberto por `connect-flow.test.ts`. |
+| IMPORTANTE: carga de hoje dependia do canal ao vivo | `useDashboard` carrega hoje sem esperar o canal; `SUBSCRIBED` recarrega; erro de canal mantém o aviso de conexão (T9) sem bloquear. |
+| MENOR: texto de início ausente | Texto neutro (`START_MISSING_TEXT`). |
+| MENOR: última resposta | `lastReplyOf` filtra até `now`. |
+| MENOR: "1 ações" | Singular "1 ação" (teste novo). |
+| SessionStart com resumo nulo | Causa: `~/.agent-dashboard/send.sh` instalado está antigo; o `hook/send.sh` do repositório já grava a origem. Teste de regressão com o payload real em `hook/send.test.ts` (passou sem vermelho, por isso). Ação do dono: deploy e rodar o comando de conexão de novo. |
+| Decisão da condução: clicar no card seleciona e abre o detalhe; expandir só pela seta | `MapCard` separado em botão de seleção e botão de seta próprio (`aria-expanded`, mostra a contagem); `activateCard` só seleciona, `toggleCard` abre/fecha. Sem teste: é ligação de tela. |
+| Spec | "Medido em 12/11/2026" ganhou a causa do `summary` nulo e a regra da tela Conectar. |
+
+Ações do dono: rodar `supabase/migrations/005_estado_da_conexao.sql`; fazer o deploy; rodar o comando de conexão de novo em cada máquina.

@@ -88,7 +88,7 @@ describe('Agora (T45, T46, T60)', () => {
   test('sessão encerrada: o ritmo cobre a sessão inteira, do início ao fim', () => {
     const events = [sessionStart(120), ev(100, 'PostToolUse', { tool: 'Read', summary: 'a.ts' }), ev(80, 'SessionEnd')];
     const activity = detailOf(events, 's1').activity;
-    expect([activity?.wholeSession, activity?.startLabel, activity?.endLabel, activity?.totalLabel, activity?.total]).toEqual([true, '10:00', '10:40', 'ações na sessão (10:00–10:40)', 1]);
+    expect([activity?.wholeSession, activity?.startLabel, activity?.endLabel, activity?.totalLabel, activity?.total]).toEqual([true, '10:00', '10:40', 'ação na sessão (10:00–10:40)', 1]);
     expect(activity?.bars).toHaveLength(40);
     expect(activity?.recentActions).toEqual([]);
   });
@@ -208,7 +208,21 @@ describe('Tokens (T49, T50, T53)', () => {
 
   test('início com mais de 7 dias que não está guardado vira aviso', () => {
     const detail = detailOf([ev(5, 'Stop', { input_tokens: 100, output_tokens: 10 })], 's1');
-    expect(detail.startMissingNotice).toBe('O início desta sessão tem mais de 7 dias e não está mais guardado.');
+    expect(detail.startMissingNotice).toBe('O início desta sessão não foi guardado (hook instalado depois do começo, sessão retomada ou início com mais de 7 dias).');
+  });
+});
+
+describe('textos no singular e no dia visto', () => {
+  test('uma ação só fica no singular, no "Agora" e na sessão encerrada', () => {
+    const now = detailOf([sessionStart(10), ev(2, 'PostToolUse', { tool: 'Read', summary: 'a.ts' })], 's1').activity;
+    expect([now?.total, now?.totalLabel]).toEqual([1, 'ação em 10 min']);
+    const ended = detailOf([sessionStart(40), ev(30, 'PostToolUse', { tool: 'Read', summary: 'a.ts' }), ev(0, 'SessionEnd')], 's1').activity;
+    expect([ended?.total, ended?.totalLabel]).toEqual([1, 'ação na sessão (11:20–12:00)']);
+  });
+
+  test('a última resposta ignora Stop depois do "agora" da vista (dia passado)', () => {
+    const detail = detailOf([sessionStart(10), ev(2, 'Stop', { summary: 'Resposta daquele dia' }), ev(-60, 'Stop', { summary: 'Resposta do dia seguinte' })], 's1');
+    expect(detail.lastReply).toBe('Resposta daquele dia');
   });
 });
 

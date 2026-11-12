@@ -91,6 +91,8 @@ export function useDashboard(viewedDay?: string) {
 
   useEffect(() => {
     if (!isMember) return;
+    // A carga não espera o canal ao vivo: se o websocket falhar, o dia aparece e o aviso de conexão fica ligado.
+    void loadToday();
     const channel = supabase.channel('events')
       .on<AgentEvent>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, ({ new: insertedEvent }) => void showLiveEvent(insertedEvent))
       .subscribe((channelStatus) => {

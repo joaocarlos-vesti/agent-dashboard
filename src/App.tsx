@@ -45,6 +45,7 @@ export function App() {
                   focusNonce={ui.focusNonce}
                   frozen={view.pastDay}
                   onActivateCard={actions.activateCard}
+                  onToggleCard={actions.toggleCard}
                   onToggleGroup={actions.toggleGroup}
                   onShowAllAgents={actions.showAllAgents}
                   onCollapseAll={actions.collapseAll}

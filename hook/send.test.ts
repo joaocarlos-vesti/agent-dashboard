@@ -112,6 +112,14 @@ test('SessionStart grava a origem no resumo', () => {
   assert.deepEqual(['startup', 'resume', 'clear', 'compact'].map((source) => sessionStart(repo, source).summary), ['startup', 'resume', 'clear', 'compact']);
 });
 
+test('SessionStart real (payload medido em 12/11) grava a origem "startup" no resumo', () => {
+  const event = sendThroughHook({
+    session_id: 'f3a1c2d4-0000-4000-8000-000000000001', transcript_path: '/home/dev/.claude/projects/p/f3a1c2d4.jsonl', cwd: makeGitRepo('feat/x'),
+    hook_event_name: 'SessionStart', source: 'startup', model: 'claude-opus-4-1',
+  });
+  assert.deepEqual([event.event, event.summary], ['SessionStart', 'startup']);
+});
+
 test('SessionStart sem origem fica sem resumo', () => {
   const event = sendThroughHook({ hook_event_name: 'SessionStart', session_id: 's1', cwd: makeGitRepo('feat/x') });
   assert.equal(event.summary, null);

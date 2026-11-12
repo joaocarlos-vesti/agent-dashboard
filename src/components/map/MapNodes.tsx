@@ -5,7 +5,7 @@ import { Icon } from '../Icon';
 import { MapCard } from './MapCard';
 
 type HeightReporter = { onHeight: (id: string, height: number) => void };
-export type CardNodeData = HeightReporter & { card: CardModel; selected: boolean; onActivate: (card: CardModel) => void };
+export type CardNodeData = HeightReporter & { card: CardModel; selected: boolean; onActivate: (card: CardModel) => void; onToggle: (card: CardModel) => void };
 export type GroupNodeData = HeightReporter & { label: string; open: boolean; onToggle: () => void };
 export type MoreNodeData = HeightReporter & { label: string; onShow: () => void };
 export type CardNode = Node<CardNodeData, 'card'>;
@@ -34,7 +34,7 @@ function MeasuredContent({ id, onHeight, children }: { id: string; onHeight: Hei
 }
 
 export function CardNodeView({ id, data }: NodeProps<CardNode>) {
-  return <MeasuredContent id={id} onHeight={data.onHeight}><MapCard card={data.card} selected={data.selected} onActivate={data.onActivate} /></MeasuredContent>;
+  return <MeasuredContent id={id} onHeight={data.onHeight}><MapCard card={data.card} selected={data.selected} onActivate={data.onActivate} onToggle={data.onToggle} /></MeasuredContent>;
 }
 
 export function GroupNodeView({ id, data }: NodeProps<GroupNode>) {

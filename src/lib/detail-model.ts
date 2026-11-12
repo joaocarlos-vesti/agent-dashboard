@@ -64,7 +64,7 @@ const RECENT_WINDOW_MS = 10 * 60 * 1000;
 const RECENT_ACTIONS_SHOWN = 5;
 const TASK_COLLAPSED_LIMIT = 140;
 const OPEN_SESSION_URL = 'https://claude.ai/code';
-const START_MISSING_TEXT = 'O início desta sessão tem mais de 7 dias e não está mais guardado.';
+const START_MISSING_TEXT = 'O início desta sessão não foi guardado (hook instalado depois do começo, sessão retomada ou início com mais de 7 dias).';
 const UNKNOWN_TOKENS_TEXT = 'Tokens aparecem quando o agente termina.';
 const NO_AGENTS_TEXT = 'Nenhum agente chamado nesta sessão.';
 const NO_RECENT_ACTIONS_TEXT = 'Nenhuma ação nos últimos 10 min.';
@@ -107,7 +107,8 @@ function activityOf(node: TreeNode, { now, timeZone, events, tree, pastDay }: De
     const startLabel = clockTime(startMs, timeZone);
     const endLabel = clockTime(endMs, timeZone);
     const bars = endedRhythm(actionTimes, startMs, endMs);
-    return { title: 'Durante a sessão', bars, total: bars.reduce((sum, count) => sum + count, 0), totalLabel: `ações na sessão (${startLabel}–${endLabel})`, startLabel, endLabel, wholeSession: true, recentActions: [], emptyText: null };
+    const total = sumOf(bars);
+    return { title: 'Durante a sessão', bars, total, totalLabel: `${actionsWord(total)} na sessão (${startLabel}–${endLabel})`, startLabel, endLabel, wholeSession: true, recentActions: [], emptyText: null };
   }
   const bars = rhythm(actionTimes, now);
   const showsActor = node.kind !== 'agent';
@@ -120,11 +121,15 @@ function activityOf(node: TreeNode, { now, timeZone, events, tree, pastDay }: De
       const actor = showsActor ? labelOfActor(tree, event.agent_id) : null;
       return text ? [{ text: actor ? `${actor} · ${text}` : text, relative: formatRelativeTime(event.created_at, now), exact: exactTime(event.created_at, timeZone) }] : [];
     });
+  const total = sumOf(bars);
   return {
-    title: 'Agora', bars, total: bars.reduce((sum, count) => sum + count, 0), totalLabel: 'ações em 10 min', startLabel: '10 min atrás', endLabel: 'agora',
+    title: 'Agora', bars, total, totalLabel: `${actionsWord(total)} em 10 min`, startLabel: '10 min atrás', endLabel: 'agora',
     wholeSession: false, recentActions, emptyText: recentActions.length === 0 ? NO_RECENT_ACTIONS_TEXT : null,
   };
 }
+
+const sumOf = (counts: number[]) => counts.reduce((sum, count) => sum + count, 0);
+const actionsWord = (total: number) => (total === 1 ? 'ação' : 'ações');
 
 function permissionOf(node: TreeNode, { now, cloudSessionIds }: DetailContext): PermissionBlock | null {
   if (node.kind !== 'session' || node.session.status !== 'waiting') return null;
@@ -138,9 +143,9 @@ function permissionOf(node: TreeNode, { now, cloudSessionIds }: DetailContext): 
   };
 }
 
-function lastReplyOf(node: TreeNode, events: AgentEvent[]): string | null {
+function lastReplyOf(node: TreeNode, events: AgentEvent[], now: number): string | null {
   if (node.kind !== 'session' || node.session.status !== 'your_turn') return null;
-  const lastStop = events.findLast((event) => event.session_id === node.session.id && event.event === 'Stop');
+  const lastStop = events.findLast((event) => event.session_id === node.session.id && event.event === 'Stop' && Date.parse(event.created_at) <= now);
   return lastStop?.summary?.trim() || null;
 }
 
@@ -238,7 +243,7 @@ export function detailModel(node: TreeNode, context: DetailContext): DetailModel
     id: node.id, kind: node.kind, icon: card.icon, title: card.title, path: pathOf(node, context),
     state: card.state, stateLabel: card.stateLabel, stateIcon: card.stateIcon, stateDetail: card.stateDetail, probableSameAgent: card.probableSameAgent, lit: card.lit,
     permission: permissionOf(node, context),
-    lastReply: lastReplyOf(node, context.events),
+    lastReply: lastReplyOf(node, context.events, context.now),
     startMissingNotice: node.kind === 'session' && node.session.startMissingNotice ? START_MISSING_TEXT : null,
     activity: activityOf(node, context),
     calls: callsOf(node),

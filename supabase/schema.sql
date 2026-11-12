@@ -52,6 +52,18 @@ begin
   return new_key;
 end $$;
 
+-- Estado da conexão do próprio login, sem gerar chave.
+create function my_connection_status()
+returns table (has_key boolean, key_created_at timestamptz, last_event_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not is_member() then raise exception 'not_member'; end if;
+  return query select
+    exists (select 1 from ingest_keys where login = my_login()),
+    (select created_at from ingest_keys where login = my_login()),
+    (select max(created_at) from events where login = my_login());
+end $$;
+
 -- Única porta de escrita: quem não tem chave válida não grava nada.
 create function ingest(p_key uuid, p_event jsonb) returns void language plpgsql security definer set search_path = public as $$
 declare owner text;
@@ -164,6 +176,8 @@ revoke execute on function my_open_sessions from public, anon;
 grant execute on function my_open_sessions to authenticated;
 revoke execute on function my_week_tokens from public, anon;
 grant execute on function my_week_tokens to authenticated;
+revoke execute on function my_connection_status from public, anon;
+grant execute on function my_connection_status to authenticated;
 
 alter publication supabase_realtime add table events;
 

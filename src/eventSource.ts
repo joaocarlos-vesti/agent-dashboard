@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { ConnectionStatus } from './lib/connect-flow';
 import type { EventSource, WeekTokensRow } from './lib/queries';
 import type { AgentEvent } from './lib/types';
 
@@ -18,4 +19,21 @@ export async function fetchWeekTokenRows(timeZone: string): Promise<WeekTokensRo
   const { data: rows, error } = await supabase.rpc('my_week_tokens', { p_time_zone: timeZone });
   if (error) throw new Error(error.message);
   return rows;
+}
+
+interface ConnectionStatusRow { has_key: boolean; last_event_at: string | null }
+
+/** Se o login tem chave e quando chegou o último evento; só lê, não gera nada. */
+export async function fetchConnectionStatus(): Promise<ConnectionStatus> {
+  const { data: rows, error } = await supabase.rpc('my_connection_status');
+  if (error) throw new Error(error.message);
+  const [row]: ConnectionStatusRow[] = rows;
+  return { hasKey: row?.has_key === true, lastEventAt: row?.last_event_at ?? null };
+}
+
+/** Gera a chave nova e desliga a anterior. */
+export async function generateConnectionKey(): Promise<string> {
+  const { data: key, error } = await supabase.rpc('create_my_key');
+  if (error) throw new Error(error.message);
+  return key;
 }

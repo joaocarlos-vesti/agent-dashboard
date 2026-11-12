@@ -16,7 +16,8 @@
 .tree-edge--ended { stroke: var(--line); }
 .tree-edge--more { stroke: #3a3a41; stroke-dasharray: 2 5; }
 
-.map-card { width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: inherit; text-align: left; transition: box-shadow 500ms ease, border-color 500ms ease, background-color 500ms ease; }
+.map-card { position: relative; width: 100%; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: inherit; transition: box-shadow 500ms ease, border-color 500ms ease, background-color 500ms ease; }
+.map-card__select { width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: none; border-radius: inherit; background: transparent; color: inherit; text-align: left; }
 .map-card--waiting { background: var(--amber-soft); border-color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber), 0 0 36px rgba(255, 181, 71, 0.16); }
 .map-card--lit { background: #1a1716; border-color: rgba(217, 119, 87, 0.6); box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.12), 0 10px 32px rgba(217, 119, 87, 0.12); }
 .map-card--alert { background: var(--violet-soft); border-color: #3a3150; }
@@ -29,8 +30,10 @@
 .map-card__head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .map-card__title { flex: 1 1 0; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-card__probable { font-size: 11px; color: var(--faint); }
-.map-card__children { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--faint); }
-.map-card__children svg { font-size: 8px; }
+.map-card__toggle { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 8px; border: none; border-radius: 6px; background: transparent; font-size: 12px; color: var(--faint); }
+.map-card__toggle:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.map-card__toggle svg { font-size: 9px; }
+.map-card__select:has(+ .map-card__toggle) .map-card__head { padding-right: 44px; }
 .map-card__state { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; white-space: nowrap; color: var(--text); }
 .map-card__state svg { flex: none; font-size: 12px; }
 .map-card__state-word { flex: none; font-weight: 500; }

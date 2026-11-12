@@ -17,6 +17,7 @@ const PAN_MARGIN = 400;
 
 export interface MapActions {
   onActivateCard: (card: CardModel) => void;
+  onToggleCard: (card: CardModel) => void;
   onToggleGroup: (group: CollapsibleGroupId) => void;
   onShowAllAgents: (workflowId: string) => void;
   onCollapseAll: () => void;
@@ -45,7 +46,7 @@ function nodeOf(item: VisibleItem, scene: MapScene, selectedId: string | null, a
   if (item.kind === 'group') return { ...base, type: 'group', data: { label: item.label, open: item.open, onToggle: () => actions.onToggleGroup(item.group), onHeight: actions.reportHeight } };
   if (item.kind === 'more') return { ...base, type: 'more', data: { label: item.label, onShow: () => actions.onShowAllAgents(item.workflowId), onHeight: actions.reportHeight } };
   const card = scene.cards[item.id];
-  return card ? { ...base, type: 'card', data: { card, selected: selectedId === item.id, onActivate: actions.onActivateCard, onHeight: actions.reportHeight } } : null;
+  return card ? { ...base, type: 'card', data: { card, selected: selectedId === item.id, onActivate: actions.onActivateCard, onToggle: actions.onToggleCard, onHeight: actions.reportHeight } } : null;
 }
 
 function toFlowElements(layout: MapLayout, nodes: MapNode[], heights: Record<string, number>): { nodes: Node[]; edges: Edge[] } {
