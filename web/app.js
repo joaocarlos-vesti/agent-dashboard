@@ -1,11 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { buildBoard } from './board.js';
+import { formatTokens, pageTitle } from './format.js';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const root = document.getElementById('root');
 const HISTORY_HOURS = 24;
-const STATUS_LABEL = { running: 'rodando', done: 'concluído', idle: 'aguardando a pessoa', stale: 'sem sinal', ended: 'encerrada' };
+const STATUS_LABEL = { running: 'rodando', done: 'concluído', idle: 'aguardando você', stale: 'sem sinal', ended: 'encerrada' };
 let loadedEvents = [];
 
 const escapeHtml = (text) => String(text ?? '').replace(/[&<>"]/g, (char) => `&#${char.charCodeAt(0)};`);
@@ -14,11 +15,19 @@ const minutesAgo = (iso) => {
   const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000);
   return minutes < 1 ? 'agora' : minutes < 60 ? `há ${minutes} min` : `há ${Math.round(minutes / 60)} h`;
 };
+const WAITING_REASON_LABEL = { permission_prompt: 'esperando permissão', idle_prompt: 'ocioso', elicitation_dialog: 'tem uma pergunta para você', agent_needs_input: 'um agente precisa de você' };
 const projectName = (cwd) => cwd?.split('/').filter(Boolean).at(-1) ?? 'sessão';
+
+const agentDetail = (agent) => {
+  if (agent.status === 'done') return `→ ${agent.result ?? ''}`;
+  const lastAction = agent.lastAction ?? 'iniciando…';
+  return agent.silentSince ? `${lastAction} · sem nova ação há ${agent.silentSince} min` : lastAction;
+};
+const agentTokensHtml = (agent) => (agent.tokens ? `<div class="muted">${formatTokens(agent.tokens.primary)} tokens</div>` : '');
 
 const agentHtml = (agent, index) => `
   <div class="row"><span class="grow">${escapeHtml(agent.task ?? `${agent.type} ${index + 1}`)}</span>${badge(agent.status)}</div>
-  <div class="muted grow">${escapeHtml(agent.status === 'done' ? `→ ${agent.result ?? ''}` : agent.lastAction ?? 'iniciando…')}</div>`;
+  <div class="muted grow">${escapeHtml(agentDetail(agent))}</div>${agentTokensHtml(agent)}`;
 
 const workflowHtml = (workflow) => `
   <div class="row"><b class="grow">⚙ ${escapeHtml(workflow.name)}</b>${badge(workflow.status)}</div>
@@ -27,16 +36,19 @@ const workflowHtml = (workflow) => `
 const sessionHtml = (session) => `
   <div class="session">
     <div class="row"><span class="grow">${escapeHtml(projectName(session.cwd))}</span>${badge(session.status)}</div>
-    <div class="muted">última atividade ${minutesAgo(session.lastAt)}</div>
+    <div class="muted">última atividade ${minutesAgo(session.lastAt)}${session.waitingReason ? ` · ${WAITING_REASON_LABEL[session.waitingReason] ?? ''}` : ''}</div>
+    <div class="muted">${formatTokens(session.tokens.total.primary)} tokens (entrada + saída)</div>
     ${session.workflows.length || session.agents.length
       ? `<div class="tree">${session.workflows.map(workflowHtml).join('')}${session.agents.map(agentHtml).join('')}</div>` : ''}
   </div>`;
 
 function render() {
   const board = buildBoard(loadedEvents);
+  document.title = pageTitle(board.flatMap((person) => person.sessions).filter((session) => session.status === 'idle').length);
   root.innerHTML = board.length
     ? `<main>${board.map((person) => `<section class="card"><h2>${escapeHtml(person.login)}</h2>${person.sessions.map(sessionHtml).join('')}</section>`).join('')}</main>`
-    : `<div class="notice">Nenhum agente ativo nas últimas ${HISTORY_HOURS} horas.</div>`;
+    : `<div class="notice">Nenhum agente ativo nas últimas ${HISTORY_HOURS} horas.
+        <p class="muted">Ainda não conectou? Clique em <b>Conectar meu Claude Code</b> no topo.</p></div>`;
 }
 
 async function loadHistory() {
@@ -59,16 +71,27 @@ function listenLive() {
     });
 }
 
-async function showKey() {
-  const { data: ingestKey, error } = await supabase.rpc('create_my_key');
-  if (error) return alert('Não foi possível gerar a chave.');
+async function showConnect() {
+  const { data: dashboardKey, error } = await supabase.rpc('create_my_key');
+  if (error) {
+    root.innerHTML = '<div class="notice">Não foi possível gerar a conexão. Tente de novo em instantes.</div>';
+    return;
+  }
+  const installCommand = `curl -fsSL ${location.origin}/install.sh | bash -s -- ${dashboardKey}`;
   root.innerHTML = `<div class="notice">
-    <p><b>Sua chave pessoal</b> (gerar outra invalida esta):</p><pre>${ingestKey}</pre>
-    <p>1. Salve o arquivo <code>~/.agent-dashboard/config</code> com:</p>
-    <pre>SUPABASE_URL=${SUPABASE_URL}\nSUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}\nINGEST_KEY=${ingestKey}</pre>
-    <p>2. Copie <code>hook/send.sh</code> do repositório para <code>~/.agent-dashboard/send.sh</code> (precisa de <code>jq</code> e <code>curl</code>).</p>
-    <p>3. Junte o conteúdo de <code>hook/settings-hooks.json</code> ao seu <code>~/.claude/settings.json</code> e abra uma sessão nova do Claude Code.</p>
+    <h2>Conectar meu Claude Code</h2>
+    <p><b>No seu computador:</b> cole no terminal e aperte Enter.</p>
+    <pre>${installCommand}</pre>
+    <button id="copy">Copiar comando</button>
+    <p class="muted">Depois, abra uma sessão nova do Claude Code. Ela aparece aqui sozinha.</p>
+    <p><b>Na nuvem (claude.ai/code), opcional:</b> no ambiente da sessão, em <i>Variáveis de ambiente</i>, cole
+    <code>INGEST_KEY=${dashboardKey}</code> e, em <i>Acesso à rede</i>, libere <code>${new URL(SUPABASE_URL).host}</code>.</p>
+    <p class="muted">Gerar uma conexão nova desliga a anterior.</p>
     <button id="back">Voltar ao painel</button></div>`;
+  document.getElementById('copy').onclick = async (clickEvent) => {
+    await navigator.clipboard.writeText(installCommand);
+    clickEvent.target.textContent = 'Copiado!';
+  };
   document.getElementById('back').onclick = render;
 }
 
@@ -79,13 +102,13 @@ async function start() {
     root.innerHTML = '<div class="notice">Entre com a sua conta do GitHub para ver o painel.</div>';
     actions.innerHTML = '<button id="login">Entrar com GitHub</button>';
     document.getElementById('login').onclick = () =>
-      supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: location.href } });
+      supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: location.origin } });
     return;
   }
   document.getElementById('who').textContent = session.user.user_metadata.user_name;
-  actions.innerHTML = '<button id="key">Minha chave</button> <button id="logout">Sair</button>';
+  actions.innerHTML = '<button id="key">Conectar meu Claude Code</button> <button id="logout">Sair</button>';
   document.getElementById('logout').onclick = async () => { await supabase.auth.signOut(); location.reload(); };
-  document.getElementById('key').onclick = showKey;
+  document.getElementById('key').onclick = showConnect;
 
   const { data: isMember } = await supabase.rpc('is_member');
   if (!isMember) {
@@ -95,5 +118,10 @@ async function start() {
   listenLive();
   setInterval(render, 30000);
 }
+
+// O retorno do GitHub pode terminar depois do carregamento da página; recomeça quando o login conclui.
+supabase.auth.onAuthStateChange((authEvent) => {
+  if (authEvent === 'SIGNED_IN' && !document.getElementById('logout')) start();
+});
 
 start();

@@ -1,1 +1,8 @@
-{"type":"module","private":true,"scripts":{"test":"node --test web/*.test.js"}}
+{
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test web/*.test.js",
+    "deploy": "cp hook/send.sh web/send.sh && cd web && npx --yes vercel deploy --prod --yes"
+  }
+}
