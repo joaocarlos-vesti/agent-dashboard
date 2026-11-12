@@ -21,7 +21,7 @@ cp "$SETTINGS" "$SETTINGS.bak-painel"
 HOOK='{"matcher":"*","hooks":[{"type":"command","command":"$HOME/.agent-dashboard/send.sh","timeout":5}]}'
 jq --argjson hook "$HOOK" '
   .hooks = (.hooks // {})
-  | reduce ("SessionStart","UserPromptSubmit","PreToolUse","PostToolUse","SubagentStart","SubagentStop","Stop","SessionEnd","Notification") as $event (.;
+  | reduce ("SessionStart","UserPromptSubmit","PreToolUse","PostToolUse","SubagentStart","SubagentStop","Stop","SessionEnd","Notification","PermissionRequest") as $event (.;
       if any(.hooks[$event][]?.hooks[]?; (.command // "") | contains(".agent-dashboard/send.sh")) then .
       else .hooks[$event] += [$hook] end)' "$SETTINGS.bak-painel" > "$SETTINGS"
 

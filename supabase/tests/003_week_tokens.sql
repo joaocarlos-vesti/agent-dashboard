@@ -20,6 +20,12 @@ insert into events (login, session_id, event, summary, created_at, input_tokens,
   ('teste-semana', 'C', 'Stop', null, '2026-11-09 14:00+00', 160000, 0, 0, 0),
   ('teste-semana', 'C', 'Stop', null, '2026-11-09 15:00+00', 20000, 0, 0, 0),
   ('teste-semana', 'C', 'Stop', null, '2026-11-09 16:00+00', 35000, 0, 0, 0),
+  -- Sessões abertas/encerradas antes de hoje (para o carregamento do dia): D terminou, E ficou aberta, F começou hoje.
+  ('teste-semana', 'D', 'SessionStart', 'startup', '2026-11-11 13:00+00', null, null, null, null),
+  ('teste-semana', 'D', 'SessionEnd', null, '2026-11-11 14:00+00', null, null, null, null),
+  ('teste-semana', 'E', 'SessionStart', 'startup', '2026-11-11 13:00+00', null, null, null, null),
+  ('teste-semana', 'E', 'Notification', 'permission_prompt: x', '2026-11-12 02:50+00', null, null, null, null),
+  ('teste-semana', 'F', 'SessionStart', 'startup', '2026-11-12 12:00+00', null, null, null, null),
   -- Evento de outro login nunca entra.
   ('outra-pessoa', 'Z', 'Stop', null, '2026-11-12 13:00+00', 999999, 0, 0, 0);
 
@@ -45,6 +51,11 @@ begin
   select coalesce(jsonb_object_agg(w.day::text, w.input_tokens + w.output_tokens), '{}') into actual
     from week_tokens_of('teste-semana', 'America/Sao_Paulo', '2026-11-17 15:00+00') w;
   if actual ? '2026-11-09' or not actual ? '2026-11-12' then raise exception 'janela de 7 dias: veio %', actual; end if;
+
+  -- Abertas antes de 12/11 00:00 em São Paulo (03:00 UTC): A (sem SessionEnd), B, C e E; D terminou e F começou depois.
+  if (select array_agg(o.session_id order by o.session_id) from open_sessions_of('teste-semana', '2026-11-12 03:00+00') o) <> array['A', 'B', 'C', 'E'] then
+    raise exception 'sessões abertas: veio %', (select array_agg(o.session_id order by o.session_id) from open_sessions_of('teste-semana', '2026-11-12 03:00+00') o);
+  end if;
 
   raise notice 'OK: my_week_tokens soma por dia local sem contar em dobro';
 end $$;

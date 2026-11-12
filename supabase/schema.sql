@@ -78,7 +78,9 @@ language sql stable security definer set search_path = public as $$
     from (
       select distinct on (e.session_id) e.session_id, e.event, e.summary
       from events e
-      where e.login = p_login and not (e.event = 'Notification' and e.summary like 'idle_prompt%')
+      where e.login = p_login
+        and (e.event in ('SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'SubagentStart', 'SubagentStop', 'Stop', 'SessionEnd', 'PermissionRequest')
+             or (e.event = 'Notification' and split_part(e.summary, ':', 1) in ('permission_prompt', 'elicitation_dialog', 'agent_needs_input')))
       order by e.session_id, e.created_at, e.id
     ) f
   ),
@@ -134,7 +136,31 @@ $$;
 revoke execute on function ingest, create_my_key, is_member from public;
 grant execute on function ingest to anon;
 grant execute on function create_my_key, is_member to authenticated;
-revoke execute on function week_tokens_of from public, anon, authenticated;
+
+-- Sessões do próprio login que seguiam abertas antes do instante pedido (o último evento anterior não é SessionEnd).
+-- O painel carrega o histórico delas para o estado "sua vez / sem sinal / aguardando" e o grupo "Abertas, sem atividade hoje".
+create or replace function open_sessions_of(p_login text, p_before timestamptz)
+returns table (session_id text)
+language sql stable security definer set search_path = public as $$
+  select last_event.session_id
+  from (
+    select distinct on (e.session_id) e.session_id, e.event
+    from events e
+    where e.login = p_login and e.created_at < p_before
+    order by e.session_id, e.created_at desc, e.id desc
+  ) last_event
+  where last_event.event <> 'SessionEnd'
+$$;
+
+create or replace function my_open_sessions(p_before timestamptz)
+returns table (session_id text)
+language sql stable security definer set search_path = public as $$
+  select o.session_id from open_sessions_of(my_login(), p_before) o where is_member()
+$$;
+
+revoke execute on function week_tokens_of, open_sessions_of from public, anon, authenticated;
+revoke execute on function my_open_sessions from public, anon;
+grant execute on function my_open_sessions to authenticated;
 revoke execute on function my_week_tokens from public, anon;
 grant execute on function my_week_tokens to authenticated;
 

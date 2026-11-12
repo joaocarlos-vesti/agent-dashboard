@@ -50,3 +50,25 @@ Escrevi todos os testes e stubs antes. Resultado: `hook/send.test.ts` 6 falhas d
 - Reconexão ao virar o dia e atualização só do card: F4.
 - Identificador da sessão na nuvem ("Abrir a sessão"): segue a confirmar.
 - Origem `compact`/`clear` como primeiro evento guardado conta como início (só `resume` não conta, como o R22/R26 definem).
+
+## Rodada 2 — correções da revisão (`fix(painel): correções da revisão da F2`)
+Revisão: `docs/fases/revisoes/F2-logica-r1.md`. Testes vermelhos primeiro (5 em `queries`, 9 em `board`/`hook`, todos por `AssertionError`); depois da correção, 187 testes e `tsc --noEmit` verdes. O SQL novo também não foi executado (ver "O que o dono precisa rodar").
+
+| # | Achado | O que foi feito |
+|---|---|---|
+| 1 IMPORTANTE | sessões abertas sem evento no dia não vinham | `loadDayEvents` também pede `openSessionIdsBefore(início do dia)`: sessões cujo último evento antes do dia não é `SessionEnd`; junta aos ids do dia (sem repetir) e busca o histórico de todas. No banco: RPC `my_open_sessions(p_before)` (+ interna `open_sessions_of`) na migration 003 e no `schema.sql`; teste manual ganhou o caso (A, B, C, E abertas; D encerrada; F começou depois) |
+| 2 IMPORTANTE | evento ao vivo de sessão desconhecida entrava sem o histórico | `useDashboard.showLiveEvent`: sessão desconhecida → `loadSessionEvents` (a sessão inteira) e só então mostra; eventos seguintes da mesma sessão esperam a mesma busca. Se a busca falha, mostra o evento sozinho e tenta de novo no próximo. Vista de dia passado ignora o ao vivo. Pura e testada: `loadSessionEvents`, `mergeEvents` |
+| 3 MENOR | `.or` sem aspas | `created_at.lt."…",created_at.gte."…"` (não medido na API; o dono confere na primeira carga real) |
+| 4 MENOR | `max-rows` menor que 1000 | **Não aplicado.** Uma página curta e não vazia não se distingue do fim da consulta sem uma chamada extra por consulta, o que quebra o R56 (3 chamadas). O padrão do Supabase é 1000; **o dono confirma `max-rows` = 1000** em Settings → API |
+| 5 MENOR | duplicata carga × ao vivo | `mergeEvents` deduplica por `id` (evento sem id nunca é descartado); usado na carga e no ao vivo |
+| 6 MENOR | citação de REPROVADO virava reprovação | o hook só olha `VEREDITO: REPROVADO/APROVADO`, vale o último do texto; se for REPROVADO além dos 160, o trecho começa em "VEREDITO: REPROVADO". Sem o rótulo "VEREDITO:" o REPROVADO depois do 160 não é preservado |
+| 7 MENOR | tipo de evento desconhecido | `isRelevantEvent` ignora eventos fora da lista conhecida (não contam como atividade nem limpam aviso) |
+| 8 MENOR | primeiro evento da sessão no SQL | `session_start` agora considera só os eventos relevantes do navegador (lista conhecida; `Notification` só de espera) |
+
+Decisão do condutor, **`PermissionRequest` como fonte oficial de "aguardando você"**:
+- `send.sh` envia o evento com `agent_id` e `tool` (já iam em todo evento) e `summary` = `permission_prompt: <ferramenta> <descrição/comando/arquivo>`.
+- Board: `PermissionRequest` é aviso de permissão (mesma regra de dono e de saída do `permission_prompt`). O `Notification` de permissão sem agente que chega depois do `PermissionRequest` pendente não troca o dono nem a hora do aviso.
+- `hook/settings-hooks.json` e `public/install.sh` ganharam o evento (o `install.sh` só acrescenta o que falta, então reinstalar não duplica).
+- Testes: hook (2), board (3 do PermissionRequest + 2 de evento desconhecido).
+
+O dono precisa rodar (além do que já estava): a 003 ficou maior (as duas RPCs novas); rodar o `003_week_tokens.sql` de novo (agora checa as sessões abertas também) e conferir `max-rows`.

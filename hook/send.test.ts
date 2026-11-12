@@ -146,3 +146,25 @@ test('REPROVADO dentro dos 160 primeiros caracteres mantém o começo do texto',
   const message = `Achei um problema grave. VEREDITO: REPROVADO. ${'Detalhes sobre o problema encontrado na revisão. '.repeat(6)}`;
   assert.equal(subagentResult(message), message.replace(/\s+/g, ' ').slice(0, 160));
 });
+
+test('PermissionRequest envia o pedido como permissão, com ferramenta e agente', () => {
+  const event = sendThroughHook({
+    hook_event_name: 'PermissionRequest', session_id: 's1', agent_id: 'a1', agent_type: 'general-purpose', tool_name: 'Bash', tool_input: { command: 'npm test', description: 'roda os testes' },
+  });
+  assert.deepEqual([event.event, event.agent_id, event.tool, event.summary], ['PermissionRequest', 'a1', 'Bash', 'permission_prompt: Bash roda os testes']);
+});
+
+test('PermissionRequest da conversa principal vai sem agente', () => {
+  const event = sendThroughHook({ hook_event_name: 'PermissionRequest', session_id: 's1', tool_name: 'Edit', tool_input: { file_path: '/a/b.ts' } });
+  assert.deepEqual([event.agent_id, event.summary], [null, 'permission_prompt: Edit /a/b.ts']);
+});
+
+test('REPROVADO só conta como veredito, não como citação de reprovação antiga', () => {
+  const summary = subagentResult(`${'Revisei de novo. '.repeat(12)}A rodada 1 foi REPROVADO por falta de teste. Agora está tudo certo. VEREDITO: APROVADO`);
+  assert.doesNotMatch(summary, /REPROVADO/);
+});
+
+test('vale o último veredito do texto', () => {
+  const summary = subagentResult(`${'Revisei de novo. '.repeat(12)}VEREDITO: APROVADO na rodada 1, mas depois achei outro problema. VEREDITO: REPROVADO por falta de teste`);
+  assert.match(summary, /^VEREDITO: REPROVADO/);
+});

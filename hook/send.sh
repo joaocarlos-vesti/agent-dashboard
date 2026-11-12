@@ -21,11 +21,12 @@ sum_transcript_tokens() {
 
 dashboard_event=$(printf '%s' "$input" | jq -c '
   def short: tostring | gsub("\\s+"; " ") | .[0:160];
-  # Reprovação só no fim de uma resposta longa não pode se perder no corte: o trecho passa a começar no REPROVADO (que não seja "nenhum/sem/não REPROVADO").
+  # Reprovação só no fim de uma resposta longa não pode se perder no corte: vale o último "VEREDITO: ..." do texto
+  # e, se for REPROVADO, o trecho começa nele. Citação solta de REPROVADO não conta.
   def result_excerpt:
     gsub("\\s+"; " ") as $flat
-    | ([$flat | match("REPROVADO"; "g") | select(($flat[:.offset]) | test("(nenhum|nenhuma|sem|não|nao) $"; "i") | not) | .offset] | first) as $rejected_at
-    | if $rejected_at != null and $rejected_at >= 160 then $flat[$rejected_at:] else $flat end;
+    | ([$flat | match("VEREDITO:\\s*\\**\\s*(REPROVADO|APROVADO)"; "g")] | last) as $verdict
+    | if $verdict != null and $verdict.captures[0].string == "REPROVADO" and $verdict.offset >= 160 then $flat[$verdict.offset:] else $flat end;
   def run_id_in(text): (text // "") | (capture("(?<id>wf_[A-Za-z0-9-]+)")? // {}) | .id;
   .hook_event_name as $name
   | {
@@ -42,6 +43,7 @@ dashboard_event=$(printf '%s' "$input" | jq -c '
         elif $name == "SubagentStop" then (.last_assistant_message | if . == null then null else tostring | result_excerpt end)
         elif $name == "Stop" then .last_assistant_message
         elif $name == "SessionStart" then .source
+        elif $name == "PermissionRequest" then ("permission_prompt: " + (.tool_name // "") + " " + ((.tool_input | .description // .command // .file_path // .pattern // .url // .query // "") | tostring))
         elif $name == "SessionEnd" then .reason
         elif $name == "Notification" then ((.notification_type // "notification") + ": " + (.message // ""))
         else null end) | (if . == null then null else short end)

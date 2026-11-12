@@ -651,3 +651,38 @@ test('origem startup do SessionStart conta como início da sessão', () => {
   assert.equal(firstSession([ev(5, 'SessionStart', { summary: 'startup' }), ev(1, 'PostToolUse', { tool: 'Read' })]).startMissing, false);
   assert.equal(firstSession([ev(5, 'SessionStart', { summary: 'resume' }), ev(1, 'PostToolUse', { tool: 'Read' })]).startMissing, true);
 });
+
+const permissionRequest = (minAgo: number, extra: EventExtra = {}) => ev(minAgo, 'PermissionRequest', { tool: 'Bash', summary: 'permission_prompt: Bash npm test', ...extra });
+
+test('PermissionRequest deixa a sessão aguardando, como o aviso de permissão', () => {
+  const session = firstSession([ev(3, 'PreToolUse', { tool: 'Bash' }), permissionRequest(2)]);
+  assert.deepEqual([session.status, session.waitingReason, session.statusSince], ['waiting', 'permission_prompt', at(2)]);
+});
+
+test('PermissionRequest de agente sai do aguardando com o evento do próprio agente', () => {
+  const asked = [ev(4, 'SubagentStart', { agent_id: 'a1', agent_type: 'general-purpose' }), permissionRequest(3, { agent_id: 'a1' })];
+  assert.equal(firstSession([...asked, siblingAction(2, 'a2')]).status, 'waiting');
+  assert.equal(firstSession([...asked, ev(2, 'PostToolUse', { agent_id: 'a1', tool: 'Bash' })]).status, 'running');
+});
+
+test('PermissionRequest da conversa principal sai com o PostToolUse dela', () => {
+  assert.equal(firstSession([ev(4, 'PreToolUse', { tool: 'Bash' }), permissionRequest(3), ev(2, 'PostToolUse', { tool: 'Bash' })]).status, 'running');
+});
+
+test('o aviso de permissão que vem depois do PermissionRequest não troca o dono nem a hora', () => {
+  const events = [ev(5, 'SubagentStart', { agent_id: 'a1', agent_type: 'general-purpose' }), ev(4, 'PreToolUse', { agent_id: 'a1', tool: 'Bash' }),
+    ev(3, 'PreToolUse', { tool: 'Read' }), permissionRequest(2, { agent_id: 'a1' }), permissionNotice(1)];
+  const session = firstSession([...events, siblingAction(0, 'a1')]);
+  assert.equal(session.status, 'running');
+  assert.equal(firstSession(events).statusSince, at(2));
+});
+
+test('tipo de evento desconhecido não limpa o aguardando', () => {
+  const session = firstSession([permissionNotice(3), ev(2, 'EventoNovoDoClaude'), ev(1, 'EventoNovoDoClaude', { agent_id: 'a9' })]);
+  assert.equal(session.status, 'waiting');
+});
+
+test('tipo de evento desconhecido não conta como atividade da sessão', () => {
+  const session = firstSession([ev(40, 'PostToolUse', { tool: 'Read' }), ev(1, 'EventoNovoDoClaude')]);
+  assert.equal(session.status, 'stale');
+});

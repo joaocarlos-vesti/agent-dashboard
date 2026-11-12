@@ -40,9 +40,14 @@ interface SessionState {
 const timeOf = (event: AgentEvent) => Date.parse(event.created_at);
 const byTime = (a: AgentEvent, b: AgentEvent) => timeOf(a) - timeOf(b);
 const notificationType = (event: AgentEvent) => event.summary?.split(':')[0];
-const isWaitingNotification = (event: AgentEvent) => event.event === 'Notification' && WAITING_NOTIFICATION_TYPES.has(notificationType(event) ?? '');
+// O PermissionRequest é o pedido de permissão oficial (traz o agente); o Notification de permissão chega depois, sem agente.
+const isPermissionRequest = (event: AgentEvent) => event.event === 'PermissionRequest';
+const isWaitingNotification = (event: AgentEvent) =>
+  isPermissionRequest(event) || (event.event === 'Notification' && WAITING_NOTIFICATION_TYPES.has(notificationType(event) ?? ''));
 const isIdleNotification = (event: AgentEvent) => event.event === 'Notification' && notificationType(event) === 'idle_prompt';
-const isRelevantEvent = (event: AgentEvent) => event.event !== 'Notification' || isWaitingNotification(event) || isIdleNotification(event);
+const KNOWN_EVENTS = new Set(['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'SubagentStart', 'SubagentStop', 'Stop', 'SessionEnd', 'PermissionRequest']);
+// Tipo de evento que o painel não conhece não pode contar como atividade nem limpar um aviso.
+const isRelevantEvent = (event: AgentEvent) => (event.event === 'Notification' ? isWaitingNotification(event) || isIdleNotification(event) : KNOWN_EVENTS.has(event.event));
 const isToolEvent = (event: AgentEvent) => event.event === 'PreToolUse' || event.event === 'PostToolUse';
 // O SessionStart de uma sessão retomada traz "resume" no resumo.
 const isResumeStart = (event: AgentEvent) => event.event === 'SessionStart' && event.summary === 'resume';
@@ -72,8 +77,11 @@ function pendingWaitingOf(events: AgentEvent[]): AgentEvent | null {
   let owner: string | null = null;
   for (const event of events) {
     if (isWaitingNotification(event)) {
-      notice = event;
-      owner = ownerOfNotice(event, toolInFlightByOrigin);
+      const repeatsPermissionRequest = notice !== null && isPermissionRequest(notice) && !isPermissionRequest(event) && !event.agent_id;
+      if (!repeatsPermissionRequest) {
+        notice = event;
+        owner = ownerOfNotice(event, toolInFlightByOrigin);
+      }
     } else if (notice && clearsWaiting(event, owner)) notice = null;
     if (isToolEvent(event)) {
       if (event.event === 'PreToolUse') toolInFlightByOrigin.set(originOf(event), event.tool);

@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { dayFilter, fetchAllPages, loadDayEvents, weekTokensFromRows } from './queries';
-import type { EventFilter, EventPage, EventSource, PageRange, WeekTokensRow } from './queries';
+import { dayFilter, fetchAllPages, loadDayEvents, loadSessionEvents, mergeEvents, weekTokensFromRows } from './queries';
+import type { EventFilter, EventPage, EventSource, OpenSessions, PageRange, WeekTokensRow } from './queries';
 import type { AgentEvent } from './types';
 
 const SP = 'America/Sao_Paulo';
@@ -52,8 +52,9 @@ test('resposta sem dados e sem erro também falha, sem devolver parcial', async 
   await assert.rejects(fetchAllPages(async () => ({ data: null, error: null })));
 });
 
-interface SourceCalls { dayFilters: EventFilter[]; sessionLookups: { sessionIds: string[]; outside: EventFilter }[] }
-function fakeSource(dayEvents: AgentEvent[], historyBySession: Record<string, AgentEvent[]>, calls: SourceCalls): EventSource {
+interface SourceCalls { dayFilters: EventFilter[]; sessionLookups: { sessionIds: string[]; outside: EventFilter }[]; openLookups: string[] }
+const isOutside = (event: AgentEvent, { gte, lt }: EventFilter) => Date.parse(event.created_at) < Date.parse(gte) || Date.parse(event.created_at) >= Date.parse(lt);
+function fakeSource(dayEvents: AgentEvent[], historyBySession: Record<string, AgentEvent[]>, calls: SourceCalls, openSessionIds: string[] = []): EventSource {
   return {
     eventsInRange: (filter, range) => {
       calls.dayFilters.push(filter);
@@ -61,11 +62,15 @@ function fakeSource(dayEvents: AgentEvent[], historyBySession: Record<string, Ag
     },
     eventsOfSessionsOutside: (sessionIds, outside, range) => {
       calls.sessionLookups.push({ sessionIds, outside });
-      return pagesOf(sessionIds.flatMap((sessionId) => historyBySession[sessionId] ?? []))(range);
+      return pagesOf(sessionIds.flatMap((sessionId) => (historyBySession[sessionId] ?? []).filter((sessionEvent) => isOutside(sessionEvent, outside))))(range);
+    },
+    openSessionIdsBefore: async (before): Promise<OpenSessions> => {
+      calls.openLookups.push(before);
+      return { data: openSessionIds, error: null };
     },
   };
 }
-const emptyCalls = (): SourceCalls => ({ dayFilters: [], sessionLookups: [] });
+const emptyCalls = (): SourceCalls => ({ dayFilters: [], sessionLookups: [], openLookups: [] });
 
 test('consulta do dia inclui o histórico das sessões do dia', async () => {
   const calls = emptyCalls();
@@ -91,10 +96,45 @@ test('sessão com vários eventos no dia é buscada uma vez só', async () => {
   assert.deepEqual(calls.sessionLookups.map(({ sessionIds }) => sessionIds), [['s1']]);
 });
 
-test('dia sem eventos não busca sessões', async () => {
+test('dia sem eventos e sem sessão aberta não busca sessões', async () => {
   const calls = emptyCalls();
   assert.deepEqual(await loadDayEvents(fakeSource([], {}, calls), '2026-11-12', SP), []);
   assert.deepEqual(calls.sessionLookups, []);
+});
+
+test('sessão de ontem sem SessionEnd vem do banco mesmo sem evento no dia', async () => {
+  const calls = emptyCalls();
+  const lastNight = [event(1, 'aberta', '2026-11-11T22:00:00Z'), event(2, 'aberta', '2026-11-12T02:50:00Z')];
+  const loaded = await loadDayEvents(fakeSource([], { aberta: lastNight }, calls, ['aberta']), '2026-11-12', SP);
+  assert.deepEqual(loaded.map(({ id }) => id), [1, 2]);
+  assert.deepEqual(calls.openLookups, ['2026-11-12T03:00:00.000Z']);
+});
+
+test('sessão aberta que também teve evento no dia é buscada uma vez só', async () => {
+  const calls = emptyCalls();
+  await loadDayEvents(fakeSource([event(5, 's1', '2026-11-12T13:00:00Z')], {}, calls, ['s1', 's2']), '2026-11-12', SP);
+  assert.deepEqual(calls.sessionLookups.map(({ sessionIds }) => sessionIds), [['s1', 's2']]);
+});
+
+test('erro ao listar as sessões abertas falha a carga do dia', async () => {
+  const source: EventSource = { ...fakeSource([], {}, emptyCalls()), openSessionIdsBefore: async () => ({ data: null, error: { message: 'permission denied' } }) };
+  await assert.rejects(loadDayEvents(source, '2026-11-12', SP), { message: 'permission denied' });
+});
+
+test('evento ao vivo de sessão desconhecida busca a sessão inteira', async () => {
+  const all = [event(1, 's1', '2026-11-11T22:40:00Z'), event(2, 's1', '2026-11-12T09:12:00Z'), event(3, 's2', '2026-11-12T09:00:00Z')];
+  const loaded = await loadSessionEvents(fakeSource([], { s1: all.slice(0, 2) }, emptyCalls()), 's1');
+  assert.deepEqual(loaded.map(({ id }) => id), [1, 2]);
+});
+
+test('juntar eventos não duplica o que veio pela carga e pelo ao vivo', () => {
+  const merged = mergeEvents([event(1, 's1', '2026-11-12T09:00:00Z'), event(3, 's1', '2026-11-12T09:02:00Z')], [event(3, 's1', '2026-11-12T09:02:00Z'), event(2, 's1', '2026-11-12T09:01:00Z')]);
+  assert.deepEqual(merged.map(({ id }) => id), [1, 2, 3]);
+});
+
+test('juntar eventos mantém os que não têm id', () => {
+  const withoutId: AgentEvent = { login: 'joao', session_id: 's1', event: 'Stop', created_at: '2026-11-12T09:00:00Z' };
+  assert.equal(mergeEvents([withoutId], [withoutId]).length, 2);
 });
 
 test('sessões do dia são buscadas em lotes de 50', async () => {
@@ -108,6 +148,7 @@ test('erro na busca das sessões falha a carga do dia', async () => {
   const failingHistory: EventSource = {
     eventsInRange: (_filter, range) => pagesOf([event(1, 's1', '2026-11-12T13:00:00Z')])(range),
     eventsOfSessionsOutside: async () => ({ data: null, error: { message: 'timeout' } }),
+    openSessionIdsBefore: async () => ({ data: [], error: null }),
   };
   await assert.rejects(loadDayEvents(failingHistory, '2026-11-12', SP), { message: 'timeout' });
 });
