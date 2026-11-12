@@ -73,3 +73,76 @@ test('evento sem transcript não leva tokens', () => {
   const event = sendThroughHook({ hook_event_name: 'Stop', session_id: 's1', transcript_path: '/nao/existe.jsonl' });
   assert.equal('input_tokens' in event, false);
 });
+
+function makeGitRepo(branch: string, { detached = false } = {}) {
+  const repo = mkdtempSync(join(tmpdir(), 'painel-repo-'));
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' });
+  git('init', '-b', branch);
+  if (detached) {
+    git('commit', '--allow-empty', '-m', 'x');
+    git('checkout', '--detach');
+  }
+  return repo;
+}
+const sessionStart = (cwd: string, source = 'startup') => sendThroughHook({ hook_event_name: 'SessionStart', session_id: 's1', cwd, source });
+
+test('SessionStart envia a branch', () => {
+  assert.equal(sessionStart(makeGitRepo('feat/x')).branch, 'feat/x');
+});
+
+test('SessionStart fora de repositório git envia branch nula, sem erro', () => {
+  assert.equal(sessionStart(mkdtempSync(join(tmpdir(), 'painel-semgit-'))).branch, null);
+});
+
+test('SessionStart com HEAD solto envia branch nula', () => {
+  assert.equal(sessionStart(makeGitRepo('main', { detached: true })).branch, null);
+});
+
+test('SessionStart de pasta que não existe envia branch nula', () => {
+  assert.equal(sessionStart('/nao/existe/mesmo').branch, null);
+});
+
+test('só o SessionStart leva a branch', () => {
+  const event = sendThroughHook({ hook_event_name: 'Stop', session_id: 's1', cwd: makeGitRepo('feat/x') });
+  assert.equal('branch' in event, false);
+});
+
+test('SessionStart grava a origem no resumo', () => {
+  const repo = makeGitRepo('feat/x');
+  assert.deepEqual(['startup', 'resume', 'clear', 'compact'].map((source) => sessionStart(repo, source).summary), ['startup', 'resume', 'clear', 'compact']);
+});
+
+test('SessionStart sem origem fica sem resumo', () => {
+  const event = sendThroughHook({ hook_event_name: 'SessionStart', session_id: 's1', cwd: makeGitRepo('feat/x') });
+  assert.equal(event.summary, null);
+});
+
+const subagentResult = (lastMessage: string) => sendThroughHook({
+  hook_event_name: 'SubagentStop', session_id: 's1', agent_id: 'a1', agent_type: 'logic-reviewer', last_assistant_message: lastMessage,
+}).summary as string;
+const longReview = (verdict: string) => `${'Revisei os arquivos da fase e conferi cada regra da matriz com os casos de borda. '.repeat(4)}\n${verdict}: o motivo está no fim`;
+
+test('REPROVADO depois do corte de 160 caracteres não se perde', () => {
+  const summary = subagentResult(longReview('VEREDITO: REPROVADO'));
+  assert.match(summary, /REPROVADO/);
+  assert.ok(summary.length <= 160);
+});
+
+test('APROVADO longo continua cortado no começo', () => {
+  const message = longReview('VEREDITO: APROVADO');
+  assert.equal(subagentResult(message), message.replace(/\s+/g, ' ').slice(0, 160));
+});
+
+test('"nenhum REPROVADO" depois do corte não vira reprovação', () => {
+  const summary = subagentResult(longReview('VEREDITO: APROVADO, nenhum REPROVADO'));
+  assert.doesNotMatch(summary, /REPROVADO/);
+});
+
+test('resultado curto com REPROVADO vai como veio', () => {
+  assert.equal(subagentResult('VEREDITO: REPROVADO por falta de teste'), 'VEREDITO: REPROVADO por falta de teste');
+});
+
+test('REPROVADO dentro dos 160 primeiros caracteres mantém o começo do texto', () => {
+  const message = `Achei um problema grave. VEREDITO: REPROVADO. ${'Detalhes sobre o problema encontrado na revisão. '.repeat(6)}`;
+  assert.equal(subagentResult(message), message.replace(/\s+/g, ' ').slice(0, 160));
+});

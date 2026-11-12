@@ -61,14 +61,13 @@ function SessionView({ session, now }: { session: Session; now: number }) {
 interface BoardViewProps {
   board: Board;
   now: number;
-  historyHours: number;
 }
 
-export function BoardView({ board, now, historyHours }: BoardViewProps) {
+export function BoardView({ board, now }: BoardViewProps) {
   if (board.length === 0) {
     return (
       <div className="notice">
-        Nenhum agente ativo nas últimas {historyHours} horas.
+        Nenhuma sessão do Claude Code neste dia.
         <p className="muted">Ainda não conectou? Clique em <b>Conectar meu Claude Code</b> no topo.</p>
       </div>
     );

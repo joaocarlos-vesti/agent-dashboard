@@ -6,6 +6,7 @@ export interface AgentEvent {
   event: string;
   created_at: string;
   cwd?: string | null;
+  branch?: string | null;
   agent_id?: string | null;
   agent_type?: string | null;
   workflow_run_id?: string | null;
@@ -95,6 +96,7 @@ export interface SessionTokens {
 export interface Session {
   id: string;
   cwd: string | null | undefined;
+  branch: string | null;
   status: SessionStatus;
   recent: boolean;
   sinceLabel: string | null;

@@ -626,3 +626,28 @@ test('mostrador soma tokens só de hoje', () => {
   const second = twoDaySession.map((event) => ({ ...event, session_id: 's2' }));
   assert.equal(gaugeSummary(allSessionsOf(sp([...twoDaySession, ...second])), NOW_SP).tokensToday, 120000);
 });
+
+test('sessão mostra a branch do início', () => {
+  const session = firstSession([ev(5, 'SessionStart', { summary: 'startup', branch: 'feat/x' }), ev(1, 'PostToolUse', { tool: 'Read' })]);
+  assert.equal(session.branch, 'feat/x');
+});
+
+test('sessão sem branch no início fica com branch nula', () => {
+  assert.equal(firstSession([ev(5, 'SessionStart', { branch: null }), ev(1, 'PostToolUse', { tool: 'Read' })]).branch, null);
+  assert.equal(firstSession([ev(5, 'SessionStart'), ev(1, 'PostToolUse', { tool: 'Read' })]).branch, null);
+});
+
+test('sessão retomada em outra branch mostra a branch mais recente', () => {
+  const session = firstSession([ev(50, 'SessionStart', { summary: 'startup', branch: 'feat/x' }), ev(40, 'SessionEnd'), ev(5, 'SessionStart', { summary: 'resume', branch: 'feat/y' })]);
+  assert.equal(session.branch, 'feat/y');
+});
+
+test('retomada sem branch nova mantém a branch do início', () => {
+  const session = firstSession([ev(50, 'SessionStart', { summary: 'startup', branch: 'feat/x' }), ev(5, 'SessionStart', { summary: 'resume', branch: null })]);
+  assert.equal(session.branch, 'feat/x');
+});
+
+test('origem startup do SessionStart conta como início da sessão', () => {
+  assert.equal(firstSession([ev(5, 'SessionStart', { summary: 'startup' }), ev(1, 'PostToolUse', { tool: 'Read' })]).startMissing, false);
+  assert.equal(firstSession([ev(5, 'SessionStart', { summary: 'resume' }), ev(1, 'PostToolUse', { tool: 'Read' })]).startMissing, true);
+});

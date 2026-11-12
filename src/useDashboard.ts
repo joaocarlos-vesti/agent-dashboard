@@ -1,20 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session as AuthSession } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { supabaseEventSource } from './eventSource';
+import { localDay } from './lib/day';
+import { loadDayEvents } from './lib/queries';
 import type { AgentEvent } from './lib/types';
 
 export type Access = 'loading' | 'signed_out' | 'no_access' | 'member';
 
-const HISTORY_HOURS = 24;
-const HISTORY_LIMIT = 5000;
+const BROWSER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const CLOCK_TICK_MS = 30000;
 
-export function useDashboard() {
+/** `viewedDay` (AAAA-MM-DD no fuso do navegador); sem ele, o dia de hoje. */
+export function useDashboard(viewedDay?: string) {
   const [authSession, setAuthSession] = useState<AuthSession | null | undefined>(undefined);
   const [isMember, setIsMember] = useState<boolean | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [isLive, setIsLive] = useState(true);
-  const [historyFailed, setHistoryFailed] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const latestLoad = useRef(0);
   const [now, setNow] = useState(() => Date.now());
   const userId = authSession?.user.id;
 
@@ -30,11 +34,16 @@ export function useDashboard() {
   }, [userId]);
 
   const loadHistory = useCallback(async () => {
-    const since = new Date(Date.now() - HISTORY_HOURS * 3600000).toISOString();
-    const { data: recentEvents, error } = await supabase.from('events').select('*').gte('created_at', since).order('id').limit(HISTORY_LIMIT);
-    setHistoryFailed(Boolean(error));
-    if (!error) setEvents(recentEvents);
-  }, []);
+    const loadId = ++latestLoad.current;
+    try {
+      const dayEvents = await loadDayEvents(supabaseEventSource, viewedDay ?? localDay(Date.now(), BROWSER_TIME_ZONE), BROWSER_TIME_ZONE);
+      if (loadId !== latestLoad.current) return;
+      setEvents(dayEvents);
+      setHistoryError(null);
+    } catch (error) {
+      if (loadId === latestLoad.current) setHistoryError(error instanceof Error ? error.message : 'erro desconhecido');
+    }
+  }, [viewedDay]);
 
   useEffect(() => {
     if (!isMember) return;
@@ -58,5 +67,5 @@ export function useDashboard() {
   const signOut = () => supabase.auth.signOut();
   const userName: string | null = authSession?.user.user_metadata.user_name ?? null;
 
-  return { access, userName, events, isLive, historyFailed, now, signIn, signOut, historyHours: HISTORY_HOURS };
+  return { access, userName, events, isLive, historyError, now, signIn, signOut };
 }

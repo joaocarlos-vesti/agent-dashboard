@@ -47,6 +47,9 @@ const isToolEvent = (event: AgentEvent) => event.event === 'PreToolUse' || event
 // O SessionStart de uma sessão retomada traz "resume" no resumo.
 const isResumeStart = (event: AgentEvent) => event.event === 'SessionStart' && event.summary === 'resume';
 
+// Branch do início mais recente que a informou (uma retomada pode abrir em outra branch).
+const branchOf = (sessionEvents: AgentEvent[]): string | null => sessionEvents.findLast((event) => event.event === 'SessionStart' && event.branch)?.branch ?? null;
+
 const originOf = (event: AgentEvent) => event.agent_id ?? null;
 
 // Um aviso de espera só sai com evento da mesma origem (agente ou conversa principal), prompt do dev, fim de resposta ou fim da sessão.
@@ -298,6 +301,7 @@ function buildSession(allEvents: AgentEvent[], view: View): Session | null {
   return {
     id: lastEvent.session_id,
     cwd: lastEvent.cwd ?? sessionEvents.find((event) => event.cwd)?.cwd,
+    branch: branchOf(sessionEvents),
     ...state,
     startMissing,
     startMissingNotice: startMissing ? START_MISSING_NOTICE : null,

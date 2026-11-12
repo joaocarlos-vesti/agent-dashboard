@@ -6,7 +6,7 @@ import { tabIndicator } from './lib/format';
 import { useDashboard } from './useDashboard';
 
 export function App() {
-  const { access, userName, events, isLive, historyFailed, now, signIn, signOut, historyHours } = useDashboard();
+  const { access, userName, events, isLive, historyError, now, signIn, signOut } = useDashboard();
   const [isConnecting, setIsConnecting] = useState(false);
   const board = useMemo(() => buildBoard(events, now), [events, now]);
 
@@ -33,8 +33,8 @@ export function App() {
         <>
           {access === 'signed_out' && <div className="notice">Entre com a sua conta do GitHub para ver o painel.</div>}
           {access === 'no_access' && <div className="notice">Seu usuário ainda não tem acesso. Peça para alguém do time incluir você.</div>}
-          {access === 'member' && historyFailed && <div className="notice">Não foi possível carregar o histórico. Tente recarregar a página.</div>}
-          {access === 'member' && !historyFailed && <BoardView board={board} now={now} historyHours={historyHours} />}
+          {access === 'member' && historyError && <div className="notice">Não foi possível carregar suas sessões: {historyError}. Confira a internet e recarregue a página.</div>}
+          {access === 'member' && !historyError && <BoardView board={board} now={now} />}
         </>
       )}
     </>

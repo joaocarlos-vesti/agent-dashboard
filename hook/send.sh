@@ -21,6 +21,11 @@ sum_transcript_tokens() {
 
 dashboard_event=$(printf '%s' "$input" | jq -c '
   def short: tostring | gsub("\\s+"; " ") | .[0:160];
+  # Reprovação só no fim de uma resposta longa não pode se perder no corte: o trecho passa a começar no REPROVADO (que não seja "nenhum/sem/não REPROVADO").
+  def result_excerpt:
+    gsub("\\s+"; " ") as $flat
+    | ([$flat | match("REPROVADO"; "g") | select(($flat[:.offset]) | test("(nenhum|nenhuma|sem|não|nao) $"; "i") | not) | .offset] | first) as $rejected_at
+    | if $rejected_at != null and $rejected_at >= 160 then $flat[$rejected_at:] else $flat end;
   def run_id_in(text): (text // "") | (capture("(?<id>wf_[A-Za-z0-9-]+)")? // {}) | .id;
   .hook_event_name as $name
   | {
@@ -34,12 +39,22 @@ dashboard_event=$(printf '%s' "$input" | jq -c '
       summary: (
         if $name == "PreToolUse" then (.tool_input | .description // .command // .file_path // .pattern // .url // .query // null)
         elif $name == "UserPromptSubmit" then .prompt
-        elif $name == "SubagentStop" or $name == "Stop" then .last_assistant_message
+        elif $name == "SubagentStop" then (.last_assistant_message | if . == null then null else tostring | result_excerpt end)
+        elif $name == "Stop" then .last_assistant_message
+        elif $name == "SessionStart" then .source
         elif $name == "SessionEnd" then .reason
         elif $name == "Notification" then ((.notification_type // "notification") + ": " + (.message // ""))
         else null end) | (if . == null then null else short end)
     }' 2>/dev/null) || exit 0
 [ -z "$dashboard_event" ] && exit 0
+
+# Branch só no início da sessão; fora de repositório git ou com HEAD solto, vai nula.
+if [ "$(jq -r '.event' <<<"$dashboard_event")" = "SessionStart" ]; then
+  session_cwd=$(jq -r '.cwd // empty' <<<"$dashboard_event")
+  session_branch=""
+  [ -n "$session_cwd" ] && session_branch=$(git -C "$session_cwd" branch --show-current 2>/dev/null)
+  dashboard_event=$(jq -c --arg branch "$session_branch" '. + {branch: (if $branch == "" then null else $branch end)}' <<<"$dashboard_event")
+fi
 
 transcript=$(printf '%s' "$input" | jq -r '.agent_transcript_path // empty')
 if [ -n "$transcript" ] && [ -f "$transcript" ]; then
