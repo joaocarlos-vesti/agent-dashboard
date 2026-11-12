@@ -394,4 +394,6 @@ Seguem supostos: formato real do `Notification`; identificador da sessão na nuv
 - Spec aprovada (`c335f45`). Stack trocada para Vite + React + TS (pedido do dono).
 - **F1 aprovada** em 4 rodadas (bateria + lógica): `a1a7795` regras; `b5b8023` correções r1; `29f5acd` conversão Vite/React/TS; `7667567` saída do aguardando/sua vez; `90dda2f` aviso sem agente ignora a ferramenta Agent. 140 testes.
 - Pendente com o dono: resultado da consulta dos avisos `Notification` (saber se trazem `agent_id`).
-- Próximo: F2 (consultas por dia/sessão, branch e origem do início no hook, migration 003, N3/R55, resultado cortado em 160 caracteres).
+- **F2 aprovada** em 2 rodadas: `b9f540a` consultas/hook/migration 003; `543ec02` sessões abertas e evento ao vivo de sessão desconhecida + PermissionRequest como fonte de "aguardando"; `6507a4a` menores. 187 testes.
+- Pendente com o dono: rodar `003_v2_2.sql` e `tests/003_week_tokens.sql`; conferir `max-rows` = 1000 no Supabase.
+- Próximo: F3 (telas).
