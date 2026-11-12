@@ -1,20 +1,26 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { buildBoard, allSessionsOf, buildWeekTokens } from './board.js';
-import { attentionItems } from './attention.js';
-import { gaugeSummary, lineState } from './activity.js';
-import { tabIndicator } from './format.js';
+import { buildBoard, allSessionsOf, buildWeekTokens } from './board';
+import type { AgentEvent, Board, BoardOptions, Session } from './types';
+import { attentionItems } from './attention';
+import { gaugeSummary, lineState } from './activity';
+import { tabIndicator } from './format';
 
 const UTC = 'UTC';
 const SP = 'America/Sao_Paulo';
 const NOW = Date.parse('2026-11-12T12:00:00Z');
-const at = (minAgo) => new Date(NOW - minAgo * 60000).toISOString();
-const ev = (minAgo, event, extra = {}) => ({ login: 'joao', session_id: 's1', event, created_at: at(minAgo), ...extra });
-const evAt = (isoTime, event, extra = {}) => ({ login: 'joao', session_id: 's1', event, created_at: isoTime, ...extra });
-const evSecondsAgo = (seconds, event, extra = {}) => ({ login: 'joao', session_id: 's1', event, created_at: new Date(NOW - seconds * 1000).toISOString(), ...extra });
-const boardOf = (events, now = NOW, options = {}) => buildBoard(events, now, { timeZone: UTC, ...options });
-const firstSession = (events, now, options) => allSessionsOf(boardOf(events, now, options))[0];
-const mapSessionsOf = (board) => board.flatMap((person) => person.sessions);
+type EventExtra = Partial<AgentEvent>;
+const at = (minAgo: number) => new Date(NOW - minAgo * 60000).toISOString();
+const ev = (minAgo: number, event: string, extra: EventExtra = {}): AgentEvent => ({ login: 'joao', session_id: 's1', event, created_at: at(minAgo), ...extra });
+const evAt = (isoTime: string, event: string, extra: EventExtra = {}): AgentEvent => ({ login: 'joao', session_id: 's1', event, created_at: isoTime, ...extra });
+const evSecondsAgo = (seconds: number, event: string, extra: EventExtra = {}): AgentEvent => ({ login: 'joao', session_id: 's1', event, created_at: new Date(NOW - seconds * 1000).toISOString(), ...extra });
+const boardOf = (events: AgentEvent[], now = NOW, options: BoardOptions = {}) => buildBoard(events, now, { timeZone: UTC, ...options });
+function firstSession(events: AgentEvent[], now?: number, options?: BoardOptions): Session {
+  const [session] = allSessionsOf(boardOf(events, now, options));
+  if (!session) throw new Error('nenhuma sessão no board');
+  return session;
+}
+const mapSessionsOf = (board: Board) => board.flatMap((person) => person.sessions);
 
 test('sessão com evento recente e sem Stop está rodando', () => {
   assert.equal(firstSession([ev(1, 'SessionStart'), ev(0, 'PreToolUse', { tool: 'Bash' })]).status, 'running');
@@ -35,8 +41,8 @@ test('pergunta de agente ao dev deixa a sessão aguardando', () => {
   assert.deepEqual([session.status, session.waitingReason], ['waiting', 'agent_needs_input']);
 });
 
-const permissionNotice = (minAgo, extra = {}) => ev(minAgo, 'Notification', { summary: 'permission_prompt: x', ...extra });
-const siblingAction = (minAgo, agentId) => ev(minAgo, 'PostToolUse', { agent_id: agentId, tool: 'Read' });
+const permissionNotice = (minAgo: number, extra: EventExtra = {}) => ev(minAgo, 'Notification', { summary: 'permission_prompt: x', ...extra });
+const siblingAction = (minAgo: number, agentId: string) => ev(minAgo, 'PostToolUse', { agent_id: agentId, tool: 'Read' });
 
 test('evento de agente irmão não limpa o aguardando da conversa principal', () => {
   const session = firstSession([permissionNotice(3), siblingAction(2, 'a2'), siblingAction(1, 'a3')]);
@@ -155,8 +161,8 @@ test('agente não terminado numa sessão encerrada fica sem sinal', () => {
   assert.equal(session.agents[0].status, 'stale');
 });
 
-const startAgent = (minAgo, id, type = 'general-purpose') => ev(minAgo, 'SubagentStart', { agent_id: id, agent_type: type });
-const silentAgent = (events) => firstSession(events).agents[0];
+const startAgent = (minAgo: number, id: string, type = 'general-purpose') => ev(minAgo, 'SubagentStart', { agent_id: id, agent_type: type });
+const silentAgent = (events: AgentEvent[]) => firstSession(events).agents[0];
 
 test('agente sem nova ação há mais de 10 minutos ganha silentSince e continua rodando', () => {
   const agent = silentAgent([startAgent(20, 'a1'), ev(13, 'PreToolUse', { agent_id: 'a1', tool: 'Read', summary: 'spec.md' }), ev(12, 'PostToolUse', { agent_id: 'a1', tool: 'Read' })]);
@@ -180,10 +186,10 @@ test('agente terminado não tem silentSince', () => {
   assert.equal(silentAgent([startAgent(30, 'a1'), ev(20, 'SubagentStop', { agent_id: 'a1', summary: 'ok' })]).silentSince, null);
 });
 
-const tokens = (input, output, cacheCreation = 0, cacheRead = 0) => ({
+const tokens = (input: number, output: number, cacheCreation = 0, cacheRead = 0) => ({
   input_tokens: input, output_tokens: output, cache_creation_tokens: cacheCreation, cache_read_tokens: cacheRead,
 });
-const stopAgent = (minAgo, id, usage, extra = {}) => ev(minAgo, 'SubagentStop', { agent_id: id, summary: 'APROVADO', ...usage, ...extra });
+const stopAgent = (minAgo: number, id: string, usage: ReturnType<typeof tokens>, extra: EventExtra = {}) => ev(minAgo, 'SubagentStop', { agent_id: id, summary: 'APROVADO', ...usage, ...extra });
 
 test('agente terminado expõe os tokens, com número principal só de entrada e saída', () => {
   const agent = silentAgent([startAgent(5, 'a1'), stopAgent(1, 'a1', tokens(100, 50, 2000, 9000))]);
@@ -220,11 +226,12 @@ test('agentes avulsos são agrupados por tipo com chamadas, total, parte da sess
     startAgent(15, 'a3', 'general-purpose'), stopAgent(14, 'a3', tokens(10, 10)),
   ]);
   const reviewers = session.agentGroups.find((group) => group.type === 'logic-reviewer');
+  assert.ok(reviewers);
   assert.deepEqual([reviewers.callCount, reviewers.tokens.primary, reviewers.sessionShare, reviewers.rejectedCount, reviewers.agents.length], [2, 80, 0.5, 1, 2]);
   assert.equal(session.agentGroups.length, 2);
 });
 
-const workflowWithAgents = (taskOf, count) => [
+const workflowWithAgents = (taskOf: (index: number) => string | null, count: number) => [
   ev(100, 'PostToolUse', { tool: 'Workflow', workflow_run_id: 'wf_1', workflow_name: 'revisao' }),
   ...Array.from({ length: count }, (_, index) => `a${index + 1}`).flatMap((id, index) => [
     ev(99 - index * 2, 'SubagentStart', { agent_id: id, agent_type: 'workflow-subagent' }),
@@ -234,7 +241,7 @@ const workflowWithAgents = (taskOf, count) => [
 
 test('agentes de workflow só são somados quando o início da tarefa é idêntico', () => {
   const sameStart = 'Revise a fase 2 do plano e confira os arquivos alterados contra a spec';
-  const session = firstSession(workflowWithAgents((index) => (index < 2 ? `${sameStart} (parte ${index})` : 'Teste a fase 3 no navegador'), 3));
+  const session = firstSession(workflowWithAgents((index: number) => (index < 2 ? `${sameStart} (parte ${index})` : 'Teste a fase 3 no navegador'), 3));
   const groups = session.workflows[0].agentGroups;
   const [merged, alone] = groups;
   assert.equal(groups.length, 2);
@@ -243,7 +250,7 @@ test('agentes de workflow só são somados quando o início da tarefa é idênti
 });
 
 test('uma letra de diferença no início da tarefa separa os agentes', () => {
-  const session = firstSession(workflowWithAgents((index) => `${'a'.repeat(59)}${index}`, 2));
+  const session = firstSession(workflowWithAgents((index: number) => `${'a'.repeat(59)}${index}`, 2));
   assert.deepEqual(session.workflows[0].agentGroups.map((group) => group.callCount), [1, 1]);
 });
 
@@ -257,7 +264,7 @@ test('agentes de workflow sem tarefa conhecida não são somados', () => {
 });
 
 test('agente de workflow recebe rótulo da tarefa', () => {
-  const session = firstSession(workflowWithAgents((index) => (index === 0 ? 'Revise a lógica da fase 2 do plano e confira' : null), 3));
+  const session = firstSession(workflowWithAgents((index: number) => (index === 0 ? 'Revise a lógica da fase 2 do plano e confira' : null), 3));
   const labels = session.workflows[0].agents.map((agent) => agent.label);
   assert.deepEqual(labels, ['Revise a lógica da', 'agente 2', 'agente 3']);
 });
@@ -337,9 +344,9 @@ test('batimento e ritmo do workflow e da sessão somam os agentes abaixo', () =>
   assert.deepEqual([session.workflows[0].agents[0].actionAt.length, session.workflows[0].actionAt.length, session.actionAt.length], [1, 1, 3]);
 });
 
-const tokensOfDay = (session) => Object.fromEntries(Object.entries(session.tokens.byDay).map(([day, usage]) => [day, usage.primary]));
+const tokensOfDay = (session: Session) => Object.fromEntries(Object.entries(session.tokens.byDay).map(([day, usage]) => [day, usage.primary]));
 const NOW_SP = Date.parse('2026-11-12T09:30:00-03:00');
-const sp = (events, now = NOW_SP, options = {}) => buildBoard(events, now, { timeZone: SP, ...options });
+const sp = (events: AgentEvent[], now = NOW_SP, options: BoardOptions = {}) => buildBoard(events, now, { timeZone: SP, ...options });
 const twoDaySession = [
   evAt('2026-11-11T20:00:00-03:00', 'SessionStart'),
   evAt('2026-11-11T23:00:00-03:00', 'Stop', tokens(90000, 10000)),
@@ -373,7 +380,7 @@ test('ações do dia contam só os eventos do dia', () => {
   assert.deepEqual(session.actionsByDay, { '2026-11-11': 5, '2026-11-12': 3 });
 });
 
-const weekPrimaryByDay = (week) => Object.fromEntries(week.days.map(({ day, tokens: usage }) => [day, usage.primary]));
+const weekPrimaryByDay = (week: ReturnType<typeof buildWeekTokens>) => Object.fromEntries(week.days.map(({ day, tokens: usage }) => [day, usage.primary]));
 
 test('semana soma os dias sem contar em dobro', () => {
   const week = buildWeekTokens(twoDaySession, NOW_SP, SP);
@@ -530,7 +537,7 @@ test('pedido de permissão de ontem ainda conta até virar sua vez', () => {
   assert.equal(tabIndicator(mapSessionsOf(board)).title, '(1) Painel de agentes');
 });
 
-const twoSessions = (secondEvents) => [
+const twoSessions = (secondEvents: AgentEvent[]) => [
   ev(30, 'SessionStart', { session_id: 'A' }), ev(1, 'PreToolUse', { session_id: 'A', tool: 'Read' }),
   ev(25, 'SessionStart', { session_id: 'B' }), ...secondEvents,
 ];
@@ -556,7 +563,7 @@ test('sessões encerradas vão para o grupo recolhido', () => {
   assert.deepEqual([person.endedToday.length, person.sessions.map((session) => session.id)], [2, ['C']]);
 });
 
-const agentsActingSecondsAgo = (secondsList) => secondsList.flatMap((seconds, index) => [
+const agentsActingSecondsAgo = (secondsList: number[]) => secondsList.flatMap((seconds, index) => [
   evSecondsAgo(600, 'SubagentStart', { agent_id: `a${index}`, agent_type: 'general-purpose' }),
   evSecondsAgo(seconds, 'PostToolUse', { agent_id: `a${index}`, tool: 'Read' }),
 ]);

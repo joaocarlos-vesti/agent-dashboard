@@ -1,9 +1,9 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { isActive, heartbeat, rhythm, endedRhythm, lineState, countByDay } from './activity.js';
+import { isActive, heartbeat, rhythm, endedRhythm, lineState, countByDay } from './activity';
 
 const NOW = Date.parse('2026-11-12T12:00:00Z');
-const secondsAgo = (seconds) => NOW - seconds * 1000;
+const secondsAgo = (seconds: number) => NOW - seconds * 1000;
 
 test('batimento conta ações em 20 janelas de 30 s', () => {
   const bars = heartbeat([secondsAgo(5), secondsAgo(10), secondsAgo(590)], NOW);

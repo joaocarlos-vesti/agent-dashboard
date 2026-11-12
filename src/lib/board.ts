@@ -1,7 +1,8 @@
-import { emptyTokens, rejectionExcerpt, sessionTokens, summarizeCalls, tokensOfEvent, weekTokens } from './usage.js';
-import { countByDay, isActive } from './activity.js';
-import { clockTime, continuationLabel, dayBounds, dayOptions, effectiveNow, localDay, resumedLabel, startedLabel } from './day.js';
-import { describeAction, formatRelativeTime } from './format.js';
+import { emptyTokens, rejectionExcerpt, sessionTokens, summarizeCalls, tokensOfEvent, weekTokens } from './usage';
+import { countByDay, isActive } from './activity';
+import { clockTime, continuationLabel, dayBounds, dayOptions, effectiveNow, localDay, resumedLabel, startedLabel } from './day';
+import { describeAction, formatRelativeTime } from './format';
+import type { Agent, AgentEvent, Board, BoardOptions, LooseAgentGroup, Person, Session, SessionStatus, Workflow, WorkflowAgentGroup } from './types';
 
 const MINUTE_MS = 60 * 1000;
 // Sem evento por este tempo, a sessão provavelmente foi fechada sem avisar (terminal fechado, queda).
@@ -18,21 +19,39 @@ const START_MISSING_NOTICE = 'início não guardado';
 // Avisos que significam "o trabalho parou até o dev agir"; o idle_prompt é "sua vez" e já vem do Stop.
 const WAITING_NOTIFICATION_TYPES = new Set(['permission_prompt', 'elicitation_dialog', 'agent_needs_input']);
 
-const timeOf = (event) => Date.parse(event.created_at);
-const byTime = (a, b) => timeOf(a) - timeOf(b);
-const notificationType = (event) => event.summary?.split(':')[0];
-const isWaitingNotification = (event) => event.event === 'Notification' && WAITING_NOTIFICATION_TYPES.has(notificationType(event));
-const isRelevantEvent = (event) => event.event !== 'Notification' || isWaitingNotification(event);
-const isToolEvent = (event) => event.event === 'PreToolUse' || event.event === 'PostToolUse';
+interface View {
+  timeZone: string | undefined;
+  today: string;
+  day: string;
+  now: number;
+  dayStartMs: number;
+  dayEndMs: number;
+  frozen: boolean;
+}
+
+interface SessionState {
+  status: SessionStatus;
+  recent: boolean;
+  sinceLabel: string | null;
+  statusSince: string;
+  waitingReason: string | null;
+}
+
+const timeOf = (event: AgentEvent) => Date.parse(event.created_at);
+const byTime = (a: AgentEvent, b: AgentEvent) => timeOf(a) - timeOf(b);
+const notificationType = (event: AgentEvent) => event.summary?.split(':')[0];
+const isWaitingNotification = (event: AgentEvent) => event.event === 'Notification' && WAITING_NOTIFICATION_TYPES.has(notificationType(event) ?? '');
+const isRelevantEvent = (event: AgentEvent) => event.event !== 'Notification' || isWaitingNotification(event);
+const isToolEvent = (event: AgentEvent) => event.event === 'PreToolUse' || event.event === 'PostToolUse';
 // O SessionStart de uma sessão retomada traz "resume" no resumo.
-const isResumeStart = (event) => event.event === 'SessionStart' && event.summary === 'resume';
+const isResumeStart = (event: AgentEvent) => event.event === 'SessionStart' && event.summary === 'resume';
 
 // Um aviso de espera só sai com evento da mesma origem (agente ou conversa principal), prompt do dev, fim de resposta ou fim da sessão.
-const clearsWaiting = (event, notice) =>
+const clearsWaiting = (event: AgentEvent, notice: AgentEvent) =>
   ['UserPromptSubmit', 'Stop', 'SessionEnd'].includes(event.event) || (event.agent_id ?? null) === (notice.agent_id ?? null);
 
-function pendingWaitingOf(events) {
-  let notice = null;
+function pendingWaitingOf(events: AgentEvent[]): AgentEvent | null {
+  let notice: AgentEvent | null = null;
   for (const event of events) {
     if (isWaitingNotification(event)) notice = event;
     else if (notice && clearsWaiting(event, notice)) notice = null;
@@ -40,8 +59,8 @@ function pendingWaitingOf(events) {
   return notice;
 }
 
-function hasWorkInProgress(events) {
-  const runningAgentIds = new Set();
+function hasWorkInProgress(events: AgentEvent[]): boolean {
+  const runningAgentIds = new Set<string | null | undefined>();
   let mainToolInFlight = false;
   for (const event of events) {
     if (isToolEvent(event) && !event.agent_id) mainToolInFlight = event.event === 'PreToolUse';
@@ -51,11 +70,14 @@ function hasWorkInProgress(events) {
   return mainToolInFlight || runningAgentIds.size > 0;
 }
 
-function sessionStateAt(events, now, timeZone) {
+function sessionStateAt(events: AgentEvent[], now: number, timeZone: string | undefined): SessionState | null {
   const lastEvent = events.at(-1);
+  if (!lastEvent) return null;
   const lastAt = timeOf(lastEvent);
   const silentMs = now - lastAt;
-  const state = (status, extra = {}) => ({ status, recent: false, sinceLabel: null, statusSince: lastEvent.created_at, waitingReason: null, ...extra });
+  const state = (status: SessionStatus, extra: Partial<SessionState> = {}): SessionState => ({
+    status, recent: false, sinceLabel: null, statusSince: lastEvent.created_at, waitingReason: null, ...extra,
+  });
   if (lastEvent.event === 'SessionEnd') return state('ended');
   const waitingNotice = pendingWaitingOf(events);
   const waitingExpired = waitingNotice && silentMs > WAITING_EXPIRES_AFTER_MS;
@@ -64,114 +86,154 @@ function sessionStateAt(events, now, timeZone) {
     const sinceLabel = recent ? `terminou ${formatRelativeTime(lastEvent.created_at, now)}` : `sua vez desde ${clockTime(lastAt, timeZone)}`;
     return state('your_turn', { recent, sinceLabel });
   }
-  if (waitingNotice) return state('waiting', { statusSince: waitingNotice.created_at, waitingReason: notificationType(waitingNotice) });
+  if (waitingNotice) return state('waiting', { statusSince: waitingNotice.created_at, waitingReason: notificationType(waitingNotice) ?? null });
   if (silentMs > (hasWorkInProgress(events) ? STALE_WITH_WORK_IN_PROGRESS_MS : STALE_AFTER_MS)) return state('stale');
   return state('running', silentMs > STALE_AFTER_MS ? { sinceLabel: `rodando ${formatRelativeTime(lastEvent.created_at, now)}` } : {});
 }
 
-function silentMinutes(agent, now) {
+function silentMinutes(agent: Agent, now: number): number | null {
   if (agent.status !== 'running' || agent.toolInFlight) return null;
   const minutes = Math.floor((now - Date.parse(agent.lastActionAt)) / MINUTE_MS);
   return minutes >= AGENT_SILENT_AFTER_MIN ? minutes : null;
 }
 
-const byPrimaryTokensDesc = (a, b) => b.tokens.primary - a.tokens.primary;
+function groupBy<T, K>(list: T[], keyOf: (entry: T) => K): Map<K, T[]> {
+  const groups = new Map<K, T[]>();
+  for (const entry of list) {
+    const key = keyOf(entry);
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
+  }
+  return groups;
+}
 
-function groupLooseAgents(agents, sessionPrimaryTokens) {
+const byPrimaryTokensDesc = (a: { tokens: { primary: number } }, b: { tokens: { primary: number } }) => b.tokens.primary - a.tokens.primary;
+
+function groupLooseAgents(agents: Agent[], sessionPrimaryTokens: number): LooseAgentGroup[] {
   return [...groupBy(agents, (agent) => agent.type)]
     .map(([type, calls]) => ({ type, ...summarizeCalls(calls, sessionPrimaryTokens) }))
     .sort(byPrimaryTokensDesc);
 }
 
+const startOfTask = (agent: Agent): string | null => agent.task?.slice(0, WORKFLOW_TASK_START_LENGTH) ?? null;
+
 // Só o início idêntico da tarefa indica o mesmo agente; sem tarefa conhecida, cada chamada fica sozinha.
-function groupWorkflowAgents(agents, sessionPrimaryTokens) {
-  const startOfTask = (agent) => agent.task?.slice(0, WORKFLOW_TASK_START_LENGTH) ?? null;
-  return [...groupBy(agents, (agent) => startOfTask(agent) ?? `agent:${agent.id}`)]
-    .map(([, calls]) => {
+function groupWorkflowAgents(agents: Agent[], sessionPrimaryTokens: number): WorkflowAgentGroup[] {
+  return [...groupBy(agents, (agent) => startOfTask(agent) ?? `agent:${agent.id}`).values()]
+    .map((calls) => {
       const summary = summarizeCalls(calls, sessionPrimaryTokens);
-      return { startOfTask: startOfTask(calls[0]), ...summary, probableSameAgent: summary.callCount > 1 };
+      const [firstCall] = calls;
+      return { startOfTask: firstCall ? startOfTask(firstCall) : null, ...summary, probableSameAgent: summary.callCount > 1 };
     })
     .sort(byPrimaryTokensDesc);
 }
 
-const groupBy = (list, keyOf) =>
-  list.reduce((groups, entry) => groups.set(keyOf(entry), [...(groups.get(keyOf(entry)) ?? []), entry]), new Map());
-
-function labelOfWorkflowAgent(agent, position) {
+function labelOfWorkflowAgent(agent: Agent, position: number): string {
   const taskWords = agent.task?.trim().split(/\s+/).slice(0, WORKFLOW_LABEL_WORDS).join(' ');
   return taskWords || `agente ${position}`;
 }
 
 // Sem um SessionStart de início como primeiro evento guardado, o começo da sessão não está no banco.
-const isStartMissing = (firstEvent) => firstEvent.event !== 'SessionStart' || isResumeStart(firstEvent);
+const isStartMissing = (firstEvent: AgentEvent) => firstEvent.event !== 'SessionStart' || isResumeStart(firstEvent);
 
-function dayMarks(visibleEvents, allEvents, startedAt, startMissing, view) {
+function dayMarks(visibleEvents: AgentEvent[], allEvents: AgentEvent[], startedAt: string, startMissing: boolean, view: View) {
   const inDay = visibleEvents.filter((event) => timeOf(event) >= view.dayStartMs);
   const beforeDay = visibleEvents.filter((event) => timeOf(event) < view.dayStartMs);
   const afterDay = allEvents.find((event) => timeOf(event) >= view.dayEndMs);
-  const stateBeforeResume = inDay.length > 0 && beforeDay.length > 0 ? sessionStateAt(beforeDay, timeOf(inDay[0]), view.timeZone).status : null;
+  const [firstInDay] = inDay;
+  const stateBeforeResume = firstInDay && beforeDay.length > 0 ? sessionStateAt(beforeDay, timeOf(firstInDay), view.timeZone)?.status : null;
   const wasIdleBeforeDay = stateBeforeResume === 'your_turn' || stateBeforeResume === 'stale';
   return {
     startedLabel: !startMissing && localDay(Date.parse(startedAt), view.timeZone) < view.day ? startedLabel(Date.parse(startedAt), view.today, view.timeZone) : null,
     continuesAfter: afterDay ? continuationLabel(timeOf(afterDay), view.today, view.timeZone) : null,
-    resumedAt: wasIdleBeforeDay ? resumedLabel(timeOf(inDay[0]), view.timeZone) : null,
+    resumedAt: firstInDay && wasIdleBeforeDay ? resumedLabel(timeOf(firstInDay), view.timeZone) : null,
   };
 }
 
-function buildSession(allEvents, view) {
+function newAgent(event: AgentEvent, agentId: string, task: string | null | undefined, workflow: Workflow | null): Agent {
+  return {
+    id: agentId,
+    type: event.agent_type,
+    status: 'running',
+    task,
+    workflow,
+    startedAt: event.created_at,
+    lastActionAt: event.created_at,
+    toolInFlight: false,
+    tokens: null,
+    actionAt: [],
+    silentSince: null,
+    rejectionReason: null,
+    label: '',
+    lit: false,
+  };
+}
+
+function newWorkflow(event: AgentEvent): Workflow {
+  return {
+    runId: event.workflow_run_id,
+    name: event.workflow_name,
+    status: 'running',
+    agents: [],
+    agentGroups: [],
+    visibleAgents: [],
+    hiddenDone: 0,
+    hiddenDoneLabel: null,
+    actionAt: [],
+    lit: false,
+  };
+}
+
+function buildSession(allEvents: AgentEvent[], view: View): Session | null {
   const sessionEvents = view.frozen ? allEvents.filter((event) => timeOf(event) <= view.now) : allEvents;
-  if (sessionEvents.length === 0) return null;
-  const workflows = [];
-  const agents = new Map();
-  const workflowByRunId = new Map();
-  const actionTimes = [];
-  let pendingAgentTask = null;
+  const firstEvent = sessionEvents[0];
+  const lastEvent = sessionEvents.at(-1);
+  if (!firstEvent || !lastEvent) return null;
+  const state = sessionStateAt(sessionEvents, view.now, view.timeZone);
+  if (!state) return null;
+
+  const workflows: Workflow[] = [];
+  const agents = new Map<string, Agent>();
+  const workflowByRunId = new Map<string, Workflow>();
+  const actionTimes: number[] = [];
+  let pendingAgentTask: string | null | undefined = null;
 
   for (const event of sessionEvents) {
+    const agentId = event.agent_id;
+    const runId = event.workflow_run_id;
+    const agent = agentId ? agents.get(agentId) : undefined;
     if (event.event === 'PostToolUse') actionTimes.push(timeOf(event));
     if (event.event === 'PostToolUse' && event.tool === 'Workflow') {
-      const workflow = { runId: event.workflow_run_id, name: event.workflow_name, status: 'running', agents: [] };
+      const workflow = newWorkflow(event);
       workflows.push(workflow);
-      workflowByRunId.set(workflow.runId, workflow);
-    } else if (event.event === 'UserPromptSubmit' && workflowByRunId.has(event.workflow_run_id)) {
-      workflowByRunId.get(event.workflow_run_id).status = 'done';
-    } else if (event.event === 'PreToolUse' && event.tool === 'Agent' && !event.agent_id) {
+      if (runId) workflowByRunId.set(runId, workflow);
+    } else if (event.event === 'UserPromptSubmit' && runId && workflowByRunId.has(runId)) {
+      const workflow = workflowByRunId.get(runId);
+      if (workflow) workflow.status = 'done';
+    } else if (event.event === 'PreToolUse' && event.tool === 'Agent' && !agentId) {
       pendingAgentTask = event.summary;
-    } else if (event.event === 'SubagentStart') {
+    } else if (event.event === 'SubagentStart' && agentId) {
       const isWorkflowAgent = event.agent_type === 'workflow-subagent';
-      agents.set(event.agent_id, {
-        id: event.agent_id,
-        type: event.agent_type,
-        status: 'running',
-        task: isWorkflowAgent ? null : pendingAgentTask,
-        workflow: isWorkflowAgent ? workflows.at(-1) : null,
-        startedAt: event.created_at,
-        lastActionAt: event.created_at,
-        toolInFlight: false,
-        tokens: null,
-        actionAt: [],
-      });
+      agents.set(agentId, newAgent(event, agentId, isWorkflowAgent ? null : pendingAgentTask, isWorkflowAgent ? workflows.at(-1) ?? null : null));
       if (!isWorkflowAgent) pendingAgentTask = null;
-    } else if (isToolEvent(event) && agents.has(event.agent_id)) {
-      const agent = agents.get(event.agent_id);
+    } else if (isToolEvent(event) && agent) {
       agent.lastActionAt = event.created_at;
       agent.toolInFlight = event.event === 'PreToolUse';
       if (agent.toolInFlight) agent.lastAction = describeAction(event);
       if (event.event === 'PostToolUse') agent.actionAt.push(timeOf(event));
-    } else if (event.event === 'SubagentStop' && agents.has(event.agent_id)) {
-      const agent = agents.get(event.agent_id);
+    } else if (event.event === 'SubagentStop' && agent) {
       Object.assign(agent, { status: 'done', result: event.summary, endedAt: event.created_at, tokens: tokensOfEvent(event) });
       if (event.task) agent.task = event.task;
       // O aviso de término traz o workflow exato; a associação pelo início é só uma estimativa.
-      if (workflowByRunId.has(event.workflow_run_id)) agent.workflow = workflowByRunId.get(event.workflow_run_id);
+      const finishedWorkflow = runId ? workflowByRunId.get(runId) : undefined;
+      if (finishedWorkflow) agent.workflow = finishedWorkflow;
     }
   }
 
-  const lastEvent = sessionEvents.at(-1);
-  const state = sessionStateAt(sessionEvents, view.now, view.timeZone);
-  const startMissing = isStartMissing(sessionEvents[0]);
-  const startedAt = sessionEvents[0].created_at;
-  const looseAgents = [];
+  const startMissing = isStartMissing(firstEvent);
+  const startedAt = firstEvent.created_at;
+  const looseAgents: Agent[] = [];
   for (const agent of agents.values()) {
     if (agent.status === 'running' && (state.status === 'ended' || state.status === 'stale')) agent.status = 'stale';
     agent.silentSince = silentMinutes(agent, view.now);
@@ -182,14 +244,14 @@ function buildSession(allEvents, view) {
   }
   looseAgents.forEach((agent, index) => { agent.label = agent.type || `agente ${index + 1}`; });
 
-  const tokens = sessionTokens(sessionEvents, { timeZone: view.timeZone, startMissing });
-  tokens.day = tokens.byDay[view.day] ?? emptyTokens();
+  const sessionUsage = sessionTokens(sessionEvents, { timeZone: view.timeZone, startMissing });
+  const tokens = { ...sessionUsage, day: sessionUsage.byDay[view.day] ?? emptyTokens() };
 
   for (const workflow of workflows) {
     workflow.agents.forEach((agent, index) => { agent.label = labelOfWorkflowAgent(agent, index + 1); });
     workflow.agentGroups = groupWorkflowAgents(workflow.agents, tokens.total.primary);
-    const collapsible = workflow.agents.length > WORKFLOW_HIDE_DONE_ABOVE ? (agent) => agent.status === 'done' && !agent.rejectionReason : () => false;
-    workflow.visibleAgents = workflow.agents.filter((agent) => !collapsible(agent));
+    const hidesFinishedAgents = workflow.agents.length > WORKFLOW_HIDE_DONE_ABOVE;
+    workflow.visibleAgents = workflow.agents.filter((agent) => !(hidesFinishedAgents && agent.status === 'done' && !agent.rejectionReason));
     workflow.hiddenDone = workflow.agents.length - workflow.visibleAgents.length;
     workflow.hiddenDoneLabel = workflow.hiddenDone > 0 ? `${workflow.hiddenDone} ${workflow.hiddenDone === 1 ? 'concluído' : 'concluídos'} · mostrar` : null;
     workflow.actionAt = workflow.agents.flatMap((agent) => agent.actionAt);
@@ -216,7 +278,7 @@ function buildSession(allEvents, view) {
   };
 }
 
-function createView(now, latestEventMs, { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, day, connected = true, lastUpdateAt } = {}) {
+function createView(now: number, latestEventMs: number, { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, day, connected = true, lastUpdateAt }: BoardOptions): View {
   const today = localDay(now, timeZone);
   const viewedDay = day ?? today;
   const bounds = dayBounds(viewedDay, timeZone);
@@ -234,46 +296,50 @@ function createView(now, latestEventMs, { timeZone = Intl.DateTimeFormat().resol
   };
 }
 
+type SessionGroup = 'sessions' | 'openIdle' | 'endedToday';
+
 // Sessão encerrada sem atividade no dia some; aberta e parada (sua vez ou sem sinal) vai para o grupo recolhido.
-function groupOfSession(session, view) {
+function groupOfSession(session: Session, view: View): SessionGroup | null {
   const hasActivityInDay = Date.parse(session.lastAt) >= view.dayStartMs;
   if (session.status === 'ended') return hasActivityInDay ? 'endedToday' : null;
   const isIdle = session.status === 'your_turn' || session.status === 'stale';
   return !hasActivityInDay && isIdle ? 'openIdle' : 'sessions';
 }
 
-const byStartedAt = (a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt);
+const byStartedAt = (a: Session, b: Session) => Date.parse(a.startedAt) - Date.parse(b.startedAt);
 
-function buildPerson(login, personEvents, view) {
-  const person = { login, sessions: [], openIdle: [], endedToday: [] };
+function buildPerson(login: string, personEvents: AgentEvent[], view: View): Person {
+  const person: Person = { login, sessions: [], openIdle: [], endedToday: [] };
   for (const sessionEvents of groupBy(personEvents, (event) => event.session_id).values()) {
     const session = buildSession(sessionEvents, view);
     const group = session && groupOfSession(session, view);
-    if (group) person[group].push(session);
+    if (session && group) person[group].push(session);
   }
-  for (const group of ['sessions', 'openIdle', 'endedToday']) person[group].sort(byStartedAt);
+  for (const group of ['sessions', 'openIdle', 'endedToday'] as const) person[group].sort(byStartedAt);
   return person;
 }
 
 /** Todas as sessões visíveis do board, dos três grupos. */
-export const allSessionsOf = (board) => board.flatMap((person) => [...person.sessions, ...person.openIdle, ...person.endedToday]);
+export const allSessionsOf = (board: Board): Session[] => board.flatMap((person) => [...person.sessions, ...person.openIdle, ...person.endedToday]);
 
 /**
  * Agrupa eventos em pessoas → sessões → workflows/agentes, com o estado de cada um no dia visto.
  * `options`: fuso, dia visto (AAAA-MM-DD), conexão do painel e hora da última atualização.
  */
-export function buildBoard(events, now = Date.now(), options = {}) {
+export function buildBoard(events: AgentEvent[], now: number = Date.now(), options: BoardOptions = {}): Board {
   const ordered = events.filter(isRelevantEvent).sort(byTime);
-  const view = createView(now, ordered.length ? timeOf(ordered.at(-1)) : 0, options);
+  const latestEvent = ordered.at(-1);
+  const view = createView(now, latestEvent ? timeOf(latestEvent) : 0, options);
   return [...groupBy(ordered, (event) => event.login)]
     .map(([login, personEvents]) => buildPerson(login, personEvents, view))
     .filter((person) => allSessionsOf([person]).length > 0);
 }
 
 /** Tokens de cada um dos 7 dias do seletor, somando por evento todas as sessões carregadas (inclusive as que o mapa do dia esconde). */
-export function buildWeekTokens(events, now, timeZone) {
+export function buildWeekTokens(events: AgentEvent[], now: number, timeZone: string | undefined) {
   const ordered = events.filter(isRelevantEvent).sort(byTime);
-  const sessions = [...groupBy(ordered, (event) => `${event.login}/${event.session_id}`).values()]
-    .map((sessionEvents) => ({ tokens: sessionTokens(sessionEvents, { timeZone, startMissing: isStartMissing(sessionEvents[0]) }) }));
+  const sessions = [...groupBy(ordered, (event) => `${event.login}/${event.session_id}`).values()].map((sessionEvents) => ({
+    tokens: sessionTokens(sessionEvents, { timeZone, startMissing: sessionEvents[0] ? isStartMissing(sessionEvents[0]) : false }),
+  }));
   return weekTokens(sessions, dayOptions(now, timeZone).map(({ day }) => day));
 }

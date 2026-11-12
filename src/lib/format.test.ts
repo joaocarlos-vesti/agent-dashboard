@@ -1,6 +1,6 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { formatTokens, pageTitle, formatRelativeTime, exactTime, describeAction, folderName, tabIndicator, describeSessionTokens, describeCallGroup } from './format.js';
+import { formatTokens, pageTitle, formatRelativeTime, exactTime, describeAction, folderName, tabIndicator, describeSessionTokens, describeCallGroup } from './format';
 
 test('números abaixo de mil aparecem inteiros', () => {
   assert.deepEqual([formatTokens(0), formatTokens(999)], ['0', '999']);
@@ -38,7 +38,7 @@ test('ícone da aba com ponto quando há sua vez recente', () => {
 });
 
 const NOW = Date.parse('2026-11-12T17:32:30Z');
-const secondsBefore = (seconds) => new Date(NOW - seconds * 1000).toISOString();
+const secondsBefore = (seconds: number) => new Date(NOW - seconds * 1000).toISOString();
 
 test('tempo relativo', () => {
   assert.equal(formatRelativeTime(secondsBefore(40), NOW), 'agora');

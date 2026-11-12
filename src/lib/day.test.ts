@@ -1,6 +1,6 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { localDay, dayBounds, dayOptions, effectiveNow, startedLabel, continuationLabel } from './day.js';
+import { localDay, dayBounds, dayOptions, effectiveNow, startedLabel, continuationLabel } from './day';
 
 const SP = 'America/Sao_Paulo';
 const NOW = Date.parse('2026-11-12T12:00:00Z');

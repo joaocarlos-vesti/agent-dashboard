@@ -1,12 +1,13 @@
-import { localParts } from './day.js';
+import { localParts } from './day';
+import type { CallGroup, Session, Tokens } from './types';
 
 const UNITS = [
   { from: 1e3, label: 'mil' },
   { from: 1e6, label: 'mi' },
   { from: 1e9, label: 'bi' },
 ];
-const roundToThreeDigits = (amount) => Number(amount.toPrecision(3));
-const formatAmount = (amount) => amount.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+const roundToThreeDigits = (amount: number) => Number(amount.toPrecision(3));
+const formatAmount = (amount: number) => amount.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 /**
  * Formata uma contagem de tokens no formato curto em português, com até 3 algarismos significativos.
@@ -14,19 +15,22 @@ const formatAmount = (amount) => amount.toLocaleString('pt-BR', { maximumFractio
  * @example formatTokens(1200000) // "1,2 mi"
  * @example formatTokens(null) // "—"
  */
-export function formatTokens(count) {
+export function formatTokens(count: number | null | undefined): string {
   if (count == null) return '—';
-  if (count < UNITS[0].from) return formatAmount(count);
+  const [smallestUnit] = UNITS;
+  if (!smallestUnit || count < smallestUnit.from) return formatAmount(count);
   let unitIndex = UNITS.findLastIndex((unit) => count >= unit.from);
-  let scaled = roundToThreeDigits(count / UNITS[unitIndex].from);
-  if (scaled >= 1000 && unitIndex < UNITS.length - 1) {
-    unitIndex += 1;
-    scaled = roundToThreeDigits(count / UNITS[unitIndex].from);
+  let unit = UNITS[unitIndex] ?? smallestUnit;
+  let scaled = roundToThreeDigits(count / unit.from);
+  const largerUnit = UNITS[unitIndex + 1];
+  if (scaled >= 1000 && largerUnit) {
+    unit = largerUnit;
+    scaled = roundToThreeDigits(count / unit.from);
   }
-  return `${formatAmount(scaled)} ${UNITS[unitIndex].label}`;
+  return `${formatAmount(scaled)} ${unit.label}`;
 }
 
-export const pageTitle = (waitingSessionCount) =>
+export const pageTitle = (waitingSessionCount: number) =>
   waitingSessionCount > 0 ? `(${waitingSessionCount}) Painel de agentes` : 'Painel de agentes';
 
 const MINUTE_MS = 60 * 1000;
@@ -39,7 +43,7 @@ const DAY_MS = 24 * HOUR_MS;
  * @example formatRelativeTime(agoraMenos3min, agora) // "há 3 min"
  * @example formatRelativeTime(agoraMenos2h10, agora) // "há 2 h"
  */
-export function formatRelativeTime(instant, now) {
+export function formatRelativeTime(instant: string, now: number): string {
   const elapsedMs = Math.max(0, now - Date.parse(instant));
   if (elapsedMs < MINUTE_MS) return 'agora';
   if (elapsedMs < HOUR_MS) return `há ${Math.floor(elapsedMs / MINUTE_MS)} min`;
@@ -49,39 +53,39 @@ export function formatRelativeTime(instant, now) {
 }
 
 /** Data e hora locais, para o texto que aparece ao passar o mouse. */
-export function exactTime(instant, timeZone) {
+export function exactTime(instant: string, timeZone: string | undefined): string {
   const { day, month, hour, minute } = localParts(Date.parse(instant), timeZone);
-  const pad = (amount) => String(amount).padStart(2, '0');
+  const pad = (amount: number) => String(amount).padStart(2, '0');
   return `${pad(day)}/${pad(month)} ${pad(hour)}:${pad(minute)}`;
 }
 
-const ACTION_VERBS = {
+const ACTION_VERBS: Record<string, string> = {
   Edit: 'editou', MultiEdit: 'editou', NotebookEdit: 'editou', Write: 'escreveu', Read: 'leu',
   Bash: 'rodou', Grep: 'buscou', Glob: 'listou', WebFetch: 'abriu', WebSearch: 'pesquisou',
 };
 const FILE_TOOLS = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write', 'Read']);
 
 /** Última ação do agente como verbo, sem expor o nome da ferramenta. Ferramenta desconhecida fica como veio. */
-export function describeAction({ tool, summary }) {
-  const verb = ACTION_VERBS[tool];
-  if (!verb) return tool;
+export function describeAction({ tool, summary }: { tool?: string | null; summary?: string | null }): string | undefined {
+  const verb = tool ? ACTION_VERBS[tool] : undefined;
+  if (!tool || !verb) return tool ?? undefined;
   const target = FILE_TOOLS.has(tool) ? summary?.split('/').filter(Boolean).at(-1) : summary;
   return [verb, target].filter(Boolean).join(' ');
 }
 
-export const folderName = (cwd) => cwd?.split(/[\\/]/).filter(Boolean).at(-1) ?? null;
+export const folderName = (cwd: string | null | undefined): string | null => cwd?.split(/[\\/]/).filter(Boolean).at(-1) ?? null;
 
 /** Título e ponto do ícone da aba: o número só conta quem aguarda permissão; "sua vez" recente só põe o ponto. */
-export function tabIndicator(sessions) {
+export function tabIndicator(sessions: (Pick<Session, 'status'> & { recent?: boolean })[]): { title: string; dot: boolean } {
   return {
     title: pageTitle(sessions.filter((session) => session.status === 'waiting').length),
     dot: sessions.some((session) => session.status === 'your_turn' && session.recent),
   };
 }
 
-export const describeSessionTokens = ({ day, total }) => `hoje: ${formatTokens(day.primary)} · sessão inteira: ${formatTokens(total.primary)}`;
+export const describeSessionTokens = ({ day, total }: { day: Pick<Tokens, 'primary'>; total: Pick<Tokens, 'primary'> }): string => `hoje: ${formatTokens(day.primary)} · sessão inteira: ${formatTokens(total.primary)}`;
 
-export function describeCallGroup({ callCount, tokens, sessionShare, rejectedCount }) {
+export function describeCallGroup({ callCount, tokens, sessionShare, rejectedCount }: Pick<CallGroup, 'callCount' | 'sessionShare' | 'rejectedCount'> & { tokens: Pick<Tokens, 'primary'> }): string {
   return [
     `${callCount} ${callCount === 1 ? 'chamada' : 'chamadas'}`,
     `total ${formatTokens(tokens.primary)}`,

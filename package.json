@@ -1,8 +1,26 @@
 {
+  "name": "painel-agentes",
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node --test web/*.test.js",
-    "deploy": "cp hook/send.sh web/send.sh && cd web && npx --yes vercel deploy --prod --yes"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "cp hook/send.sh public/send.sh && npm run build && cp -r web/.vercel dist/.vercel && cd dist && npx --yes vercel deploy --prod --yes"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
   }
 }

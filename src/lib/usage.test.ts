@@ -1,6 +1,7 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { medianOf, outlierFlags, rejectionExcerpt, summarizeCalls, weekTokens } from './usage.js';
+import type { Tokens } from './types';
+import { medianOf, outlierFlags, rejectionExcerpt, summarizeCalls, weekTokens } from './usage';
 
 test('mediana das chamadas', () => {
   assert.equal(medianOf([10, 20, 90]), 20);
@@ -31,7 +32,7 @@ test('APROVADO e "nenhum REPROVADO encontrado" não são reprovação', () => {
   assert.equal(rejectionExcerpt(undefined), null);
 });
 
-const call = (id, primary, result = 'ok') => ({ id, result, tokens: { input: primary, output: 0, cacheCreation: 0, cacheRead: 0, primary } });
+const call = (id: string, primary: number, result = 'ok') => ({ id, result, tokens: { input: primary, output: 0, cacheCreation: 0, cacheRead: 0, primary } });
 
 test('grupo marca a chamada fora da curva e informa a mediana', () => {
   const group = summarizeCalls([call('a', 10), call('b', 20), call('c', 41)], 1000);
@@ -49,8 +50,8 @@ test('sem tokens na sessão o grupo não tem percentual', () => {
 });
 
 test('semana lista cada dia em valor absoluto e soma sem contar em dobro', () => {
-  const tokensOf = (primary) => ({ input: primary, output: 0, cacheCreation: 0, cacheRead: 0, primary });
-  const sessions = [
+  const tokensOf = (primary: number): Tokens => ({ input: primary, output: 0, cacheCreation: 0, cacheRead: 0, primary });
+  const sessions: Parameters<typeof weekTokens>[0] = [
     { tokens: { byDay: { '2026-11-11': tokensOf(100000), '2026-11-12': tokensOf(60000) } } },
     { tokens: { byDay: { '2026-11-12': tokensOf(5000) } } },
   ];

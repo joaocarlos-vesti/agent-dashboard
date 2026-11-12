@@ -1,27 +1,32 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const SEND_SCRIPT = new URL('../hook/send.sh', import.meta.url).pathname;
+const SEND_SCRIPT = new URL('./send.sh', import.meta.url).pathname;
 
-function sendThroughHook(hookInput) {
+type HookInput = Record<string, unknown>;
+interface TokenUsage { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number }
+interface TokenColumns { input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number }
+
+function sendThroughHook(hookInput: HookInput) {
   const home = mkdtempSync(join(tmpdir(), 'painel-hook-'));
   mkdirSync(join(home, '.agent-dashboard'));
   writeFileSync(join(home, '.agent-dashboard', 'config'), 'INGEST_KEY=00000000-0000-0000-0000-000000000000\n');
   const dryFile = join(home, 'dry.jsonl');
   execFileSync('bash', [SEND_SCRIPT], { input: JSON.stringify(hookInput), env: { ...process.env, HOME: home, DASHBOARD_DRY_FILE: dryFile } });
-  return JSON.parse(readFileSync(dryFile, 'utf8')).p_event;
+  const sent: { p_event: Record<string, unknown> & Partial<TokenColumns> } = JSON.parse(readFileSync(dryFile, 'utf8'));
+  return sent.p_event;
 }
 
-const assistantLine = (messageId, usage) => JSON.stringify({ type: 'assistant', message: { id: messageId, usage } });
-const usage = (input, output, cacheCreation, cacheRead) => ({
+const assistantLine = (messageId: string, usage: TokenUsage) => JSON.stringify({ type: 'assistant', message: { id: messageId, usage } });
+const usage = (input: number, output: number, cacheCreation: number, cacheRead: number): TokenUsage => ({
   input_tokens: input, output_tokens: output, cache_creation_input_tokens: cacheCreation, cache_read_input_tokens: cacheRead,
 });
 
-function writeTranscript(lines) {
+function writeTranscript(lines: string[]) {
   const path = join(mkdtempSync(join(tmpdir(), 'painel-transcript-')), 'transcript.jsonl');
   writeFileSync(path, `${lines.join('\n')}\n`);
   return path;
@@ -34,7 +39,7 @@ const transcriptWithRepeatedMessage = () => writeTranscript([
   assistantLine('msg_1', usage(2, 100, 1000, 5000)),
   assistantLine('msg_2', usage(3, 50, 200, 6000)),
 ]);
-const tokensIn = ({ input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens }) => ({
+const tokensIn = ({ input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens }: Partial<TokenColumns>) => ({
   input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
 });
 const EXPECTED_TOKENS = { input_tokens: 5, output_tokens: 150, cache_creation_tokens: 1200, cache_read_tokens: 11000 };

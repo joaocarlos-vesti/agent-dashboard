@@ -105,3 +105,15 @@ Decisões do condutor aplicadas:
 Lacunas da bateria: R22 (teste "SessionStart de retomada não conta como início"), R47 (`hiddenDoneLabel` = "4 concluídos · mostrar") e R71 (`startMissingNotice` = "início não guardado") ganharam asserção.
 
 Fora do que foi corrigido: o `send.sh` corta o resultado do `SubagentStop` em 160 caracteres (veredito no fim de resposta longa não é detectado) e o `source` do `SessionStart` entrar no plano da F2 — registrados para a F2.
+
+### Migração para Vite + React + TypeScript (commit `refactor(painel): projeto em Vite + React + TypeScript`)
+
+Decisão do dono (topo da spec, "Stack"). Comportamento não mudou: os mesmos 133 casos rodam no Vitest, todos verdes.
+
+- **Estrutura:** `src/lib/*.ts` (day, activity, attention, usage, board, format, `types.ts`), `src/App.tsx` + `BoardView.tsx` + `ConnectPanel.tsx` + `useDashboard.ts` + `supabase.ts` + `config.ts`, `index.html` na raiz, `public/install.sh`. `web/` ficou só com `.vercel` (ignorado pelo git).
+- **Tipos:** `AgentEvent`, `Board`, `Person`, `Session`, `Workflow`, `Agent` e `AttentionItem` em `src/lib/types.ts`. Sem `any` e sem `!` no código de produção; `tsc --noEmit` com `strict`, `noUnusedLocals` e `noUnusedParameters`.
+- **Testes:** só trocaram o `import` do `node:test` pelo do Vitest (as asserções seguem em `node:assert/strict`) e ganharam tipos nos auxiliares. `hook/send.test.ts` roda no Vitest e lê `hook/send.sh` pelo caminho novo.
+- **Tela:** `App.tsx` é o mínimo da tela de antes (entrar com GitHub, conectar, painel simples). O visual novo é a F3.
+- **Scripts:** `dev`, `build` (`tsc --noEmit && vite build`), `typecheck`, `test` e `deploy` (copia `send.sh` para `public/`, faz o build e publica `dist/`). O deploy não foi executado.
+- **Decisões minhas:** (1) deixei de fora o `noUncheckedIndexedAccess`: o ganho não compensava os `?.` espalhados nos testes. (2) `tabIndicator` aceita `recent` opcional. (3) `weekTokens` aceita `byDay` parcial (dia sem tokens), o que já era o comportamento.
+- **Ficou de fora:** teste de componente (a tela é provisória até a F3); `send.sh` em `public/` só existe depois do `deploy` (está no `.gitignore`).
