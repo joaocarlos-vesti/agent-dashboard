@@ -6,6 +6,7 @@ import type { MapOrientation } from '../../lib/layout-mode';
 import { layoutMap, type MapLayout } from '../../lib/map-layout';
 import type { CollapsibleGroupId, VisibleItem } from '../../lib/map-tree';
 import type { MapScene } from '../../lib/map-scene';
+import type { EdgeSpark } from '../../lib/motion';
 import { CardNodeView, GroupNodeView, MoreNodeView, type CardNode, type GroupNode, type MoreNode } from './MapNodes';
 import { TreeEdgeView, type TreeEdgeType } from './TreeEdge';
 
@@ -14,6 +15,7 @@ const EDGE_TYPES = { tree: TreeEdgeView };
 const HEIGHT_TOLERANCE_PX = 0.5;
 const FOCUS_ZOOM = 1;
 const PAN_MARGIN = 400;
+const NO_SPARKS: EdgeSpark[] = [];
 
 export interface MapActions {
   onActivateCard: (card: CardModel) => void;
@@ -29,6 +31,7 @@ interface MapViewProps extends MapActions {
   selectedId: string | null;
   focusNonce: number;
   frozen: boolean;
+  sparks: Record<string, EdgeSpark[]>;
 }
 
 type MapNode = CardNode | GroupNode | MoreNode;
@@ -49,17 +52,17 @@ function nodeOf(item: VisibleItem, scene: MapScene, selectedId: string | null, a
   return card ? { ...base, type: 'card', data: { card, selected: selectedId === item.id, onActivate: actions.onActivateCard, onToggle: actions.onToggleCard, onHeight: actions.reportHeight } } : null;
 }
 
-function toFlowElements(layout: MapLayout, nodes: MapNode[], heights: Record<string, number>): { nodes: Node[]; edges: Edge[] } {
+function toFlowElements(layout: MapLayout, nodes: MapNode[], heights: Record<string, number>, sparks: Record<string, EdgeSpark[]>): { nodes: Node[]; edges: Edge[] } {
   return {
     nodes: nodes.flatMap((node) => {
       const placed = layout.placed[node.id];
       return placed ? [{ ...node, position: { x: placed.x, y: placed.y }, width: placed.width, height: heights[node.id] }] : [];
     }),
-    edges: layout.edges.map((edge): TreeEdgeType => ({ id: edge.id, source: edge.sourceId, target: edge.targetId, type: 'tree', data: { path: edge.path, line: edge.line }, selectable: false, focusable: false })),
+    edges: layout.edges.map((edge): TreeEdgeType => ({ id: edge.id, source: edge.sourceId, target: edge.targetId, type: 'tree', data: { path: edge.path, line: edge.line, sparks: sparks[edge.id] ?? NO_SPARKS }, selectable: false, focusable: false })),
   };
 }
 
-function MapCanvas({ scene, orientation, selectedId, focusNonce, frozen, ...actions }: MapViewProps) {
+function MapCanvas({ scene, orientation, selectedId, focusNonce, frozen, sparks, ...actions }: MapViewProps) {
   const { heights, reportHeight } = useMeasuredHeights();
   const { setCenter, getZoom } = useReactFlow();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -86,7 +89,7 @@ function MapCanvas({ scene, orientation, selectedId, focusNonce, frozen, ...acti
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [scene, selectedId, reportHeight],
   );
-  const { nodes, edges } = useMemo(() => toFlowElements(layout, mapNodes, heights), [layout, mapNodes, heights]);
+  const { nodes, edges } = useMemo(() => toFlowElements(layout, mapNodes, heights, sparks), [layout, mapNodes, heights, sparks]);
 
   // O clique na faixa de atenção leva o mapa até o card (depois de abrir o que o escondia).
   useEffect(() => {

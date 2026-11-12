@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { NOW, UTC, boardOf, ev, sessionStart } from './test-fixtures';
 import { attentionItems } from './attention';
 import { buildMapTree } from './map-tree';
-import { headerModel, type HeaderInput } from './header-model';
+import { headerModel, offlineBannerText, type HeaderInput } from './header-model';
 import { initialUiState, uiReducer } from './ui-state';
 import type { AgentEvent } from './types';
 
@@ -71,5 +71,15 @@ describe('botão âmbar de quem espera você (T11)', () => {
     const pastView = uiReducer(initialUiState({ today: '2026-11-12', helpSeen: true }), { type: 'selectDay', day: '2026-11-11' });
     const afterClick = uiReducer(pastView, { type: 'goToWaiting', sessionId: waiting?.sessionId ?? '', reveal: waiting?.reveal ?? undefined });
     expect([afterClick.day, afterClick.live, afterClick.selectedId]).toEqual(['2026-11-12', true, 's1']);
+  });
+});
+
+describe('T9: aviso de conexão caída', () => {
+  test('diz desde quando os dados pararam', () => {
+    expect(offlineBannerText(Date.parse('2026-11-12T14:32:10Z'), UTC)).toBe('Sem conexão desde 14:32. Os dados param nesse horário; reconecta sozinho.');
+  });
+
+  test('sem nenhuma atualização ainda, não inventa horário', () => {
+    expect(offlineBannerText(null, UTC)).toBe('Sem conexão com o servidor. Reconecta sozinho quando a rede voltar.');
   });
 });

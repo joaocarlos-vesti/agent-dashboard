@@ -80,6 +80,19 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .orb--your_turn { color: var(--text); box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--text); }
 .orb--your_turn_old { color: var(--faint); box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px #46464e; }
 
+/* Giro só no agente que agiu nos últimos 12 s; pulso só em quem aguarda você (âmbar é exclusivo desse estado). */
+.orb--ringing::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--brand); border-right-color: var(--brand-light); animation: orb-spin 900ms linear infinite; }
+.orb--waiting { animation: waiting-pulse 1.8s ease-in-out infinite; }
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+@keyframes waiting-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--amber), 0 0 0 4px rgba(255, 181, 71, 0.45); }
+  50% { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--amber), 0 0 0 9px rgba(255, 181, 71, 0); }
+}
+
+.live-number--changed { animation: number-flash 900ms ease-out; }
+@keyframes number-flash { 0% { color: var(--brand-light); transform: translateY(-2px); } 100% { transform: none; } }
+
 @media (prefers-reduced-motion: reduce) {
-  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
+  .map-card--lit { box-shadow: none !important; }
 }

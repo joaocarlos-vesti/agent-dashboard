@@ -2,6 +2,7 @@ import { clockTime } from './day';
 import { heartbeat } from './activity';
 import { folderName, formatRelativeTime, formatTokens } from './format';
 import type { AgentUnit, TreeNode } from './map-tree';
+import { isEntering } from './motion';
 import { addTokens } from './usage';
 import type { Session } from './types';
 
@@ -35,6 +36,8 @@ export interface CardModel {
   open: boolean;
   tone: CardTone;
   lit: boolean;
+  ringing: boolean;
+  entering: boolean;
   probableSameAgent: boolean;
   ariaLabel: string;
 }
@@ -143,6 +146,9 @@ function agentParts(unit: AgentUnit, now: number): CardParts {
   };
 }
 
+// O anel é de quem agiu: sessão com filhos e workflow só acendem pelo que está embaixo.
+const actsByItself = (node: TreeNode) => node.kind === 'agent' || (node.kind === 'session' && node.childIds.length === 0);
+
 // Sessão com filhos e workflow resumem os de baixo; só o que age sozinho mostra o batimento.
 const hasPulseRow = (node: TreeNode) => node.kind === 'agent' || (node.kind === 'session' && node.childIds.length === 0);
 
@@ -165,6 +171,8 @@ export function cardModel(node: TreeNode, { now, timeZone, open, cloudSessionIds
     showsHeartbeat: hasPulseRow(node) && (shown.state === 'running' || pulse.some((count) => count > 0)),
     childCount: node.childIds.length,
     open,
+    ringing: shown.lit && actsByItself(node),
+    entering: node.kind === 'agent' && isEntering(node.unit.startedAt, now),
     tone: toneOf({ state: shown.state, lit: shown.lit, tags: shown.tags }),
     ariaLabel: `${NODE_LABEL[node.kind]} ${shown.title}, ${presentation.label}${tokensSpoken}`,
   };

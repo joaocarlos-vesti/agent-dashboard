@@ -1,3 +1,4 @@
+import { localDay } from './day';
 import { exactTime, formatRelativeTime } from './format';
 
 export interface ConnectionStatus { hasKey: boolean; keyCreatedAt: string | null; lastEventAt: string | null }
@@ -67,18 +68,22 @@ const NEW_KEY_HINT = 'A conexão anterior foi desligada. Rode o comando abaixo p
 const EMPTY_VIEW: ConnectView = { headline: '', hint: null, error: null, canRetryStatus: false, action: null, confirmation: null, install: null };
 
 // Evento anterior à chave atual veio da chave já desligada: não prova que a conexão atual funciona.
-const hasEventSinceKey = ({ keyCreatedAt, lastEventAt }: ConnectionStatus) =>
-  lastEventAt !== null && (keyCreatedAt === null || Date.parse(lastEventAt) > Date.parse(keyCreatedAt));
+const hasEventSinceKey = ({ hasKey, keyCreatedAt, lastEventAt }: ConnectionStatus) =>
+  hasKey && lastEventAt !== null && (keyCreatedAt === null || Date.parse(lastEventAt) > Date.parse(keyCreatedAt));
 
-const keyWithoutEventHint = (keyCreatedAt: string | null, timeZone: string | undefined) => {
-  const generatedAt = keyCreatedAt ? ` às ${exactTime(keyCreatedAt, timeZone).slice(-5)}` : '';
-  return `Conexão gerada${generatedAt} — ainda não chegou nenhum evento. Rode no seu terminal o comando que apareceu ao gerar, ou gere uma nova conexão.`;
-};
+function generatedAtText(keyCreatedAt: string | null, { now, timeZone }: Pick<ConnectContext, 'now' | 'timeZone'>): string {
+  if (!keyCreatedAt) return '';
+  const dayAndTime = exactTime(keyCreatedAt, timeZone);
+  return localDay(Date.parse(keyCreatedAt), timeZone) === localDay(now, timeZone) ? ` às ${dayAndTime.slice(-5)}` : ` em ${dayAndTime}`;
+}
 
-function overviewOf(status: ConnectionStatus, { now, timeZone }: Pick<ConnectContext, 'now' | 'timeZone'>): Pick<ConnectView, 'headline' | 'hint'> & { actionLabel: string } {
-  if (status.lastEventAt && hasEventSinceKey(status)) return { headline: `Conectado · último evento ${formatRelativeTime(status.lastEventAt, now)}`, hint: null, actionLabel: 'Gerar nova conexão' };
+const keyWithoutEventHint = (keyCreatedAt: string | null, context: Pick<ConnectContext, 'now' | 'timeZone'>) =>
+  `Conexão gerada${generatedAtText(keyCreatedAt, context)} — ainda não chegou nenhum evento. Rode no seu terminal o comando que apareceu ao gerar, ou gere uma nova conexão.`;
+
+function overviewOf(status: ConnectionStatus, context: Pick<ConnectContext, 'now' | 'timeZone'>): Pick<ConnectView, 'headline' | 'hint'> & { actionLabel: string } {
+  if (status.lastEventAt && hasEventSinceKey(status)) return { headline: `Conectado · último evento ${formatRelativeTime(status.lastEventAt, context.now)}`, hint: null, actionLabel: 'Gerar nova conexão' };
   return status.hasKey
-    ? { headline: 'Ainda não conectado', hint: keyWithoutEventHint(status.keyCreatedAt, timeZone), actionLabel: 'Gerar nova conexão' }
+    ? { headline: 'Ainda não conectado', hint: keyWithoutEventHint(status.keyCreatedAt, context), actionLabel: 'Gerar nova conexão' }
     : { headline: 'Ainda não conectado', hint: null, actionLabel: 'Gerar conexão' };
 }
 

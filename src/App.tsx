@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { BROWSER_TIME_ZONE } from './config';
+import { offlineBannerText } from './lib/header-model';
 import { AttentionStrip } from './components/chrome/AttentionStrip';
 import { FrozenBanner } from './components/chrome/FrozenBanner';
 import { Header } from './components/chrome/Header';
@@ -9,8 +11,6 @@ import { MapView } from './components/map/MapView';
 import { ConnectPanel } from './ConnectPanel';
 import { useDashboardView } from './hooks/useDashboardView';
 
-const OFFLINE_TEXT = 'Sem conexão com o servidor. Os dados podem estar desatualizados.';
-
 export function App() {
   const view = useDashboardView();
   const { dashboard, ui, header, strip, gauge, detail, screen, scene, actions } = view;
@@ -19,7 +19,7 @@ export function App() {
 
   return (
     <div className="app">
-      {dashboard.access === 'member' && !dashboard.isLive && <div className="offline-banner" role="alert">{OFFLINE_TEXT}</div>}
+      {dashboard.access === 'member' && !dashboard.isLive && <div className="offline-banner" role="alert">{offlineBannerText(dashboard.lastUpdateAt, BROWSER_TIME_ZONE)}</div>}
       <Header
         model={header}
         access={dashboard.access}
@@ -44,6 +44,7 @@ export function App() {
                   selectedId={ui.selectedId}
                   focusNonce={ui.focusNonce}
                   frozen={view.pastDay}
+                  sparks={view.sparks}
                   onActivateCard={actions.activateCard}
                   onToggleCard={actions.toggleCard}
                   onToggleGroup={actions.toggleGroup}

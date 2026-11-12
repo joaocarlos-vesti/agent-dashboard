@@ -9,7 +9,11 @@
 .map-handle { opacity: 0; pointer-events: none; width: 1px; height: 1px; min-width: 0; min-height: 0; border: none; }
 
 .tree-edge { stroke-width: 1.5; }
-.tree-edge--flow { stroke: var(--brand); stroke-width: 1.8; stroke-dasharray: 3 7; }
+.tree-edge--flow { stroke: var(--brand); stroke-width: 1.8; stroke-dasharray: 3 7; animation: edge-flow 700ms linear infinite; }
+@keyframes edge-flow { to { stroke-dashoffset: -10; } }
+.tree-spark { pointer-events: none; }
+.tree-spark--action { fill: var(--brand-light); filter: drop-shadow(0 0 4px var(--brand)); }
+.tree-spark--done { fill: var(--teal); filter: drop-shadow(0 0 4px var(--teal)); }
 .tree-edge--dashed { stroke: #5a5a63; stroke-dasharray: 3 7; }
 .tree-edge--idle { stroke: #4a4a52; }
 .tree-edge--dotted { stroke: #4a4a52; stroke-dasharray: 1 5; }
@@ -18,7 +22,13 @@
 
 .map-card { position: relative; width: 100%; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: inherit; transition: box-shadow 500ms ease, border-color 500ms ease, background-color 500ms ease; }
 .map-card__select { width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: none; border-radius: inherit; background: transparent; color: inherit; text-align: left; }
-.map-card--waiting { background: var(--amber-soft); border-color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber), 0 0 36px rgba(255, 181, 71, 0.16); }
+.map-card--entering { animation: card-enter 450ms ease-out; }
+@keyframes card-enter { from { opacity: 0; transform: translateX(-18px) scale(0.97); } to { opacity: 1; transform: none; } }
+.map-card--waiting { animation: waiting-halo 1.8s ease-in-out infinite; background: var(--amber-soft); border-color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber), 0 0 36px rgba(255, 181, 71, 0.16); }
+@keyframes waiting-halo {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--amber), 0 0 36px rgba(255, 181, 71, 0.16); }
+  50% { box-shadow: inset 0 0 0 1px var(--amber), 0 0 48px rgba(255, 181, 71, 0.34); }
+}
 .map-card--lit { background: #1a1716; border-color: rgba(217, 119, 87, 0.6); box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.12), 0 10px 32px rgba(217, 119, 87, 0.12); }
 .map-card--alert { background: var(--violet-soft); border-color: #3a3150; }
 .map-card--yourTurn { background: #1b1b1f; border-color: #6a6a73; box-shadow: 0 0 0 1px rgba(237, 235, 230, 0.06), 0 8px 24px rgba(0, 0, 0, 0.35); }

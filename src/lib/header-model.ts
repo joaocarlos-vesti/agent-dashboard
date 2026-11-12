@@ -1,5 +1,5 @@
 import { cardModel } from './card-model';
-import { dayOptions, localParts } from './day';
+import { clockTime, dayOptions, localParts } from './day';
 import { formatRelativeTime } from './format';
 import { revealPathOf, type MapTree } from './map-tree';
 import type { RevealPath } from './ui-state';
@@ -27,6 +27,12 @@ export interface HeaderModel {
 }
 
 const longDayLabel = (day: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(Date.parse(`${day}T12:00:00Z`));
+/** Aviso de conexão caída: os dados da tela param no horário da última atualização. */
+export function offlineBannerText(lastUpdateAt: number | null, timeZone: string | undefined): string {
+  if (lastUpdateAt === null) return 'Sem conexão com o servidor. Reconecta sozinho quando a rede voltar.';
+  return `Sem conexão desde ${clockTime(lastUpdateAt, timeZone)}. Os dados param nesse horário; reconecta sozinho.`;
+}
+
 const pad = (amount: number) => String(amount).padStart(2, '0');
 
 function updatedTextOf(lastUpdateAt: number | null, timeZone: string | undefined): string {

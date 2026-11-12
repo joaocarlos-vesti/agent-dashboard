@@ -1,3 +1,4 @@
+import { LiveNumber } from '../LiveNumber';
 import type { GaugeModel } from '../../lib/gauge-model';
 import type { GaugePanel } from '../../lib/ui-state';
 import { HelpPanel } from './HelpPanel';
@@ -22,7 +23,7 @@ export function Gauge({ model, openPanel, onTogglePanel, onSelectDay }: GaugePro
         {actionsPerMinute && <span className="gauge-figure"><strong>{actionsPerMinute.value}</strong>&nbsp;{actionsPerMinute.label}</span>}
         {tokens && (
           <button type="button" className="gauge-button" aria-expanded={openPanel === 'tokens'} onClick={() => onTogglePanel('tokens')}>
-            <strong>{tokens.value}</strong> {tokens.label}
+            <LiveNumber value={tokens.value} /> {tokens.label}
           </button>
         )}
         <button type="button" className="gauge-button gauge-button--icon" aria-expanded={openPanel === 'help'} aria-label="Como ler o mapa" onClick={() => onTogglePanel('help')}>?</button>

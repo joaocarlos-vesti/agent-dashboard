@@ -144,6 +144,29 @@ describe('card de agente (T31, T32, T33, T36, T64)', () => {
     expect(quiet.lit).toBe(false);
   });
 
+  test('anel girando só em quem agiu: o agente e a sessão sem filhos, não o workflow nem a sessão que só repassa', () => {
+    const events = [sessionStart(30), workflowStart(20), workflowAgentStart(19, 'a1'), evSeconds(3, 'PostToolUse', { agent_id: 'a1', agent_type: 'workflow-subagent', tool: 'Read', summary: 'a.ts' })];
+    const tree = buildMapTree(boardOf(events), { pastDay: false });
+    const workflowId = tree.nodes.a1?.parentId ?? '';
+    const [agent, workflow, session] = ['a1', workflowId, 's1'].map((id) => cardOf(events, id));
+    expect([agent?.ringing, workflow?.ringing, session?.ringing]).toEqual([true, false, false]);
+    expect([agent?.lit, workflow?.lit, session?.lit]).toEqual([true, true, true]);
+    const leafSession = cardOf([sessionStart(30), evSeconds(3, 'PostToolUse', { tool: 'Read' })], 's1');
+    expect(leafSession.ringing).toBe(true);
+  });
+
+  test('sem ação nos últimos 12 s o anel não gira', () => {
+    const quiet = cardOf([sessionStart(30), looseAgentStart(10, 'l1'), evSeconds(13, 'PostToolUse', { agent_id: 'l1', agent_type: 'logic-reviewer', tool: 'Read' })], 's1::agents::logic-reviewer');
+    expect(quiet.ringing).toBe(false);
+  });
+
+  test('agente que acabou de começar entra deslizando; um antigo não', () => {
+    const fresh = cardOf([sessionStart(30), evSeconds(2, 'SubagentStart', { agent_id: 'l1', agent_type: 'logic-reviewer' })], 's1::agents::logic-reviewer');
+    const old = cardOf([sessionStart(30), looseAgentStart(10, 'l1')], 's1::agents::logic-reviewer');
+    const session = cardOf([sessionStart(0.02)], 's1');
+    expect([fresh.entering, old.entering, session.entering]).toEqual([true, false, false]);
+  });
+
   test('aguardando vence o aceso na cor do card', () => {
     const card = cardOf([sessionStart(30), evSeconds(5, 'PostToolUse', { tool: 'Read', summary: 'a.ts' }), permission(0.05)], 's1');
     expect(card.tone).toBe('waiting');

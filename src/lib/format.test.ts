@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { formatTokens, pageTitle, formatRelativeTime, exactTime, describeAction, folderName, tabIndicator, describeSessionTokens, describeCallGroup } from './format';
+import { formatTokens, pageTitle, formatRelativeTime, exactTime, describeAction, folderName, tabIndicator, faviconHref, describeSessionTokens, describeCallGroup } from './format';
 
 test('números abaixo de mil aparecem inteiros', () => {
   assert.deepEqual([formatTokens(0), formatTokens(999)], ['0', '999']);
@@ -74,4 +74,12 @@ test('resumo do agente', () => {
   assert.equal(describeCallGroup(group), '3 chamadas · total 45 mil · 25% da sessão · 1 reprovou');
   assert.equal(describeCallGroup({ ...group, callCount: 1, sessionShare: null, rejectedCount: 2 }), '1 chamada · total 45 mil · 2 reprovaram');
   assert.equal(describeCallGroup({ ...group, rejectedCount: 0 }), '3 chamadas · total 45 mil · 25% da sessão');
+});
+
+test('ícone da aba: com ponto só quando há "sua vez" recente', () => {
+  const plain = decodeURIComponent(faviconHref(false));
+  const withDot = decodeURIComponent(faviconHref(true));
+  assert.match(plain, /^data:image\/svg\+xml,/);
+  assert.equal(plain.includes('<circle'), false);
+  assert.equal(withDot.includes('<circle'), true);
 });

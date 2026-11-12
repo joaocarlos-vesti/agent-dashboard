@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session as AuthSession } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { BROWSER_TIME_ZONE } from './config';
 import { supabaseEventSource } from './eventSource';
 import { localDay } from './lib/day';
+import { liveClockMs } from './lib/motion';
 import { loadDayEvents, loadSessionEvents, mergeEvents } from './lib/queries';
 import type { Access } from './lib/screen-state';
 import type { AgentEvent } from './lib/types';
 
 export type { Access };
 
-const CLOCK_TICK_MS = 30000;
 const SUBSCRIBE_TIMEOUT_MS = 10000;
 
 interface PastDay { day: string; events: AgentEvent[]; error: string | null }
@@ -18,7 +18,7 @@ interface PastDay { day: string; events: AgentEvent[]; error: string | null }
 const errorText = (error: unknown) => (error instanceof Error ? error.message : 'erro desconhecido');
 
 /** `viewedDay` (AAAA-MM-DD no fuso do navegador); sem ele, o dia de hoje. Hoje fica sempre carregado: quem espera você é de agora, mesmo olhando outro dia. */
-export function useDashboard(viewedDay?: string) {
+export function useDashboard(viewedDay?: string, onLiveEvent?: (insertedEvent: AgentEvent) => void) {
   const [authSession, setAuthSession] = useState<AuthSession | null | undefined>(undefined);
   const [isMember, setIsMember] = useState<boolean | null>(null);
   const [todayEvents, setTodayEvents] = useState<AgentEvent[]>([]);
@@ -29,6 +29,8 @@ export function useDashboard(viewedDay?: string) {
   const [retryCount, setRetryCount] = useState(0);
   const [isLive, setIsLive] = useState(true);
   const latestLoad = useRef(0);
+  const liveEventListener = useRef(onLiveEvent);
+  liveEventListener.current = onLiveEvent;
   const knownSessions = useRef(new Set<string>());
   const sessionHistories = useRef(new Map<string, Promise<AgentEvent[]>>());
   const [now, setNow] = useState(() => Date.now());
@@ -87,7 +89,10 @@ export function useDashboard(viewedDay?: string) {
     }
     const sessionHistory = history ? await history : [];
     setTodayEvents((current) => mergeEvents(current, [...sessionHistory, insertedEvent]));
+    // O relógio pode estar até 30 s atrás; sem avançá-lo, a ação nova pareceria do futuro e o card não acenderia.
+    setNow(Date.now());
     setLastUpdateAt(Date.now());
+    liveEventListener.current?.(insertedEvent);
   }, []);
 
   useEffect(() => {
@@ -105,13 +110,18 @@ export function useDashboard(viewedDay?: string) {
           void loadToday();
         }
       });
-    const clock = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
     return () => {
-      clearInterval(clock);
       clearTimeout(subscribeTimeout);
       void supabase.removeChannel(channel);
     };
   }, [isMember, loadToday, showLiveEvent]);
+
+  const clockMs = useMemo(() => liveClockMs(todayEvents, now), [todayEvents, now]);
+  useEffect(() => {
+    if (!isMember) return;
+    const clock = setInterval(() => setNow(Date.now()), clockMs);
+    return () => clearInterval(clock);
+  }, [isMember, clockMs]);
 
   const retry = useCallback(() => {
     setRetryCount((count) => count + 1);

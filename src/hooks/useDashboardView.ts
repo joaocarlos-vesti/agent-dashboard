@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { BROWSER_TIME_ZONE } from '../config';
 import { attentionItems } from '../lib/attention';
 import { allSessionsOf, buildBoard } from '../lib/board';
@@ -6,14 +6,17 @@ import { effectiveNow } from '../lib/day';
 import { detailModel } from '../lib/detail-model';
 import { gaugeModel } from '../lib/gauge-model';
 import { headerModel } from '../lib/header-model';
-import { tabIndicator } from '../lib/format';
 import type { CardModel } from '../lib/card-model';
 import { buildMapScene } from '../lib/map-scene';
+import { sparksByEdge } from '../lib/motion';
 import { buildMapTree, nodesWithChildren, revealPathOf } from '../lib/map-tree';
 import { screenState } from '../lib/screen-state';
 import { stripModel, type StripChip } from '../lib/strip-model';
 import type { CollapsibleGroup } from '../lib/ui-state';
 import { useDashboard } from '../useDashboard';
+import { useLiveSparks } from './useLiveSparks';
+import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { useTabIndicator } from './useTabIndicator';
 import { useTodayKey } from './useTodayKey';
 import { useUiState } from './useUiState';
 import { useViewportMode } from './useViewportMode';
@@ -23,7 +26,9 @@ import { useWeekTokens } from './useWeekTokens';
 export function useDashboardView() {
   const todayKey = useTodayKey();
   const [ui, dispatch] = useUiState(todayKey);
-  const dashboard = useDashboard(ui.day);
+  const liveSparks = useLiveSparks();
+  const dashboard = useDashboard(ui.day, liveSparks.push);
+  const reducedMotion = usePrefersReducedMotion();
   const { now, isLive, lastUpdateAt, todayEvents, events } = dashboard;
   const layoutMode = useViewportMode();
   const pastDay = !ui.live;
@@ -34,9 +39,12 @@ export function useDashboardView() {
   const board = useMemo(() => (pastDay ? buildBoard(events, shownNow, { ...connection, day: ui.day }) : todayBoard), [pastDay, events, shownNow, connection, ui.day, todayBoard]);
   const scene = useMemo(() => buildMapScene({ board, ui, now: shownNow, timeZone: BROWSER_TIME_ZONE, pastDay }), [board, ui, shownNow, pastDay]);
 
-  useEffect(() => {
-    document.title = tabIndicator(todayBoard.flatMap((person) => person.sessions)).title;
-  }, [todayBoard]);
+  useTabIndicator(useMemo(() => todayBoard.flatMap((person) => person.sessions), [todayBoard]));
+  // Dia passado e movimento reduzido ficam sem faíscas; os mesmos dados aparecem em texto.
+  const sparks = useMemo(
+    () => (pastDay || reducedMotion ? {} : sparksByEdge(liveSparks.liveEvents, scene.tree, scene.items)),
+    [pastDay, reducedMotion, liveSparks.liveEvents, scene.tree, scene.items],
+  );
 
   const todayTree = useMemo(() => buildMapTree(todayBoard, { pastDay: false }), [todayBoard]);
   const todayWaiting = useMemo(() => attentionItems(todayBoard, now).filter((item) => item.kind === 'waiting'), [todayBoard, now]);
@@ -72,5 +80,5 @@ export function useDashboardView() {
     toggleTask: () => dispatch({ type: 'toggleTask' }),
   };
 
-  return { dashboard, ui, pastDay, layoutMode, scene, header, strip, gauge, detail, screen, isPanelShown, actions };
+  return { dashboard, ui, pastDay, layoutMode, scene, sparks, header, strip, gauge, detail, screen, isPanelShown, actions };
 }

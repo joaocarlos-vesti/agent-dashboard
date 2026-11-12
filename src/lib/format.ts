@@ -83,6 +83,13 @@ export function tabIndicator(sessions: (Pick<Session, 'status'> & { recent?: boo
   };
 }
 
+const FAVICON_BASE = '<rect width="32" height="32" rx="8" fill="#d97757"/><path d="M9 21l5-5-5-5M17 22h7" stroke="#141416" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+const FAVICON_DOT = '<circle cx="25" cy="7" r="6" fill="#ffffff" stroke="#141416" stroke-width="2"/>';
+
+/** Ícone da aba como endereço de imagem; o ponto avisa que uma sessão acabou de ficar na sua vez. */
+export const faviconHref = (dot: boolean): string =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">${FAVICON_BASE}${dot ? FAVICON_DOT : ''}</svg>`)}`;
+
 export const describeSessionTokens = ({ day, total }: { day: Pick<Tokens, 'primary'>; total: Pick<Tokens, 'primary'> }): string => `hoje: ${formatTokens(day.primary)} · sessão inteira: ${formatTokens(total.primary)}`;
 
 export function describeCallGroup({ callCount, tokens, sessionShare, rejectedCount }: Pick<CallGroup, 'callCount' | 'sessionShare' | 'rejectedCount'> & { tokens: Pick<Tokens, 'primary'> }): string {

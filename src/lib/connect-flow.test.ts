@@ -57,6 +57,17 @@ describe('estado da tela Conectar (T58)', () => {
     expect(view.action?.label).toBe('Gerar nova conexão');
   });
 
+  test('chave de outro dia mostra o dia e a hora', () => {
+    const view = connectView(run([{ type: 'statusLoaded', status: { hasKey: true, keyCreatedAt: '2026-11-11T10:00:00Z', lastEventAt: null } }]), context);
+    expect(view.hint).toBe('Conexão gerada em 11/11 10:00 — ainda não chegou nenhum evento. Rode no seu terminal o comando que apareceu ao gerar, ou gere uma nova conexão.');
+  });
+
+  test('sem chave, evento antigo não vira "Conectado"', () => {
+    const view = connectView(run([{ type: 'statusLoaded', status: { hasKey: false, keyCreatedAt: null, lastEventAt: '2026-11-12T11:57:00Z' } }]), context);
+    expect(view.headline).toBe('Ainda não conectado');
+    expect(view.action?.label).toBe('Gerar conexão');
+  });
+
   test('evento depois da chave atual é conexão', () => {
     const view = connectView(run([{ type: 'statusLoaded', status: { hasKey: true, keyCreatedAt: '2026-11-12T10:00:00Z', lastEventAt: '2026-11-12T10:01:00Z' } }]), context);
     expect(view.headline).toBe('Conectado · último evento há 1 h');
