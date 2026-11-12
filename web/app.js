@@ -41,7 +41,7 @@ const sessionHtml = (session) => `
 
 function render() {
   const board = buildBoard(loadedEvents);
-  document.title = tabIndicator(allSessionsOf(board)).title;
+  document.title = tabIndicator(board.flatMap((person) => person.sessions)).title;
   root.innerHTML = board.length
     ? `<main>${board.map((person) => `<section class="card"><h2>${escapeHtml(person.login)}</h2>${allSessionsOf([person]).map(sessionHtml).join('')}</section>`).join('')}</main>`
     : `<div class="notice">Nenhum agente ativo nas últimas ${HISTORY_HOURS} horas.

@@ -38,10 +38,13 @@ function offsetMs(instant, timeZone) {
   return Date.UTC(year, month - 1, day, hour, minute, second) - Math.floor(instant / 1000) * 1000;
 }
 
+// Em dia que pula a meia-noite (horário de verão), o dia começa na primeira hora que existe.
 function startOfLocalDayMs(day, timeZone) {
   const asIfUtc = dayStartUtcMs(day);
   const firstGuess = asIfUtc - offsetMs(asIfUtc, timeZone);
-  return asIfUtc - offsetMs(firstGuess, timeZone);
+  let start = asIfUtc - offsetMs(firstGuess, timeZone);
+  while (localDay(start, timeZone) < day) start += 15 * MINUTE_MS;
+  return start;
 }
 
 /** Intervalo [from, to) do dia local, em UTC. */

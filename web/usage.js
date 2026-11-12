@@ -70,9 +70,9 @@ export function summarizeCalls(agents, sessionPrimaryTokens) {
 
 const USAGE_FIELDS = ['input', 'output', 'cacheCreation', 'cacheRead'];
 
-// Acumulado que cai (conversa compactada ou limpa) recomeça do zero: o que veio depois é gasto novo.
+// Acumulado que cai (conversa compactada ou limpa): a queda não gasta nada, e a base recomeça no valor novo.
 function growthSince(previous, current) {
-  const grown = Object.fromEntries(USAGE_FIELDS.map((field) => [field, current[field] >= previous[field] ? current[field] - previous[field] : current[field]]));
+  const grown = Object.fromEntries(USAGE_FIELDS.map((field) => [field, Math.max(0, current[field] - previous[field])]));
   return { ...grown, primary: grown.input + grown.output };
 }
 
@@ -92,6 +92,19 @@ export function conversationUsage(sessionEvents, { timeZone, startMissing }) {
     previous = current;
   }
   return { total: addTokens([baseline, ...Object.values(byDay)]), byDay };
+}
+
+/** Tokens de uma sessão: conversa, agentes e total por dia. Cada agente conta no dia em que terminou. */
+export function sessionTokens(sessionEvents, { timeZone, startMissing }) {
+  const conversation = conversationUsage(sessionEvents, { timeZone, startMissing });
+  const byDay = { ...conversation.byDay };
+  const agentStops = sessionEvents.filter((event) => event.event === 'SubagentStop' && tokensOfEvent(event));
+  for (const stop of agentStops) {
+    const day = localDay(Date.parse(stop.created_at), timeZone);
+    byDay[day] = addTokens([byDay[day], tokensOfEvent(stop)]);
+  }
+  const agents = addTokens(agentStops.map(tokensOfEvent));
+  return { conversation: conversation.total, agents, total: addTokens([conversation.total, agents]), byDay };
 }
 
 /** Soma os tokens de cada dia em valores absolutos (nunca em percentual), sem contar a mesma sessão duas vezes. */

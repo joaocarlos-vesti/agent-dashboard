@@ -1,11 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBoard, allSessionsOf } from './board.js';
+import { buildBoard, allSessionsOf, buildWeekTokens } from './board.js';
 import { attentionItems } from './attention.js';
 import { gaugeSummary, lineState } from './activity.js';
-import { dayOptions } from './day.js';
 import { tabIndicator } from './format.js';
-import { weekTokens } from './usage.js';
 
 const UTC = 'UTC';
 const SP = 'America/Sao_Paulo';
@@ -16,7 +14,7 @@ const evAt = (isoTime, event, extra = {}) => ({ login: 'joao', session_id: 's1',
 const evSecondsAgo = (seconds, event, extra = {}) => ({ login: 'joao', session_id: 's1', event, created_at: new Date(NOW - seconds * 1000).toISOString(), ...extra });
 const boardOf = (events, now = NOW, options = {}) => buildBoard(events, now, { timeZone: UTC, ...options });
 const firstSession = (events, now, options) => allSessionsOf(boardOf(events, now, options))[0];
-const sessionById = (board, id) => allSessionsOf(board).find((session) => session.id === id);
+const mapSessionsOf = (board) => board.flatMap((person) => person.sessions);
 
 test('sessão com evento recente e sem Stop está rodando', () => {
   assert.equal(firstSession([ev(1, 'SessionStart'), ev(0, 'PreToolUse', { tool: 'Bash' })]).status, 'running');
@@ -30,6 +28,37 @@ test('aguardando só com pedido de permissão', () => {
 test('pergunta direta ao dev também deixa a sessão aguardando', () => {
   const session = firstSession([ev(2, 'SessionStart'), ev(1, 'Notification', { summary: 'elicitation_dialog: Claude has a question' })]);
   assert.equal(session.status, 'waiting');
+});
+
+test('pergunta de agente ao dev deixa a sessão aguardando', () => {
+  const session = firstSession([ev(2, 'PreToolUse', { tool: 'Bash' }), ev(1, 'Notification', { summary: 'agent_needs_input: um agente precisa de você' })]);
+  assert.deepEqual([session.status, session.waitingReason], ['waiting', 'agent_needs_input']);
+});
+
+const permissionNotice = (minAgo, extra = {}) => ev(minAgo, 'Notification', { summary: 'permission_prompt: x', ...extra });
+const siblingAction = (minAgo, agentId) => ev(minAgo, 'PostToolUse', { agent_id: agentId, tool: 'Read' });
+
+test('evento de agente irmão não limpa o aguardando da conversa principal', () => {
+  const session = firstSession([permissionNotice(3), siblingAction(2, 'a2'), siblingAction(1, 'a3')]);
+  assert.deepEqual([session.status, session.statusSince], ['waiting', at(3)]);
+});
+
+test('evento da conversa principal limpa o aguardando', () => {
+  assert.equal(firstSession([permissionNotice(3), siblingAction(2, 'a2'), ev(1, 'PostToolUse', { tool: 'Bash' })]).status, 'running');
+});
+
+test('aviso de um agente só sai com evento do mesmo agente', () => {
+  const fromA1 = permissionNotice(3, { agent_id: 'a1' });
+  assert.equal(firstSession([fromA1, siblingAction(2, 'a2')]).status, 'waiting');
+  assert.equal(firstSession([fromA1, siblingAction(1, 'a1')]).status, 'running');
+});
+
+test('prompt do dev limpa o aguardando de qualquer origem', () => {
+  assert.equal(firstSession([permissionNotice(3, { agent_id: 'a1' }), ev(1, 'UserPromptSubmit')]).status, 'running');
+});
+
+test('evento de agente sem aviso novo não vira aguardando', () => {
+  assert.equal(firstSession([ev(3, 'PreToolUse', { tool: 'Bash' }), siblingAction(1, 'a2')]).status, 'running');
 });
 
 test('aviso que não é permissão não muda o estado', () => {
@@ -73,6 +102,7 @@ test('sessão rodando sem evento há mais de 10 minutos fica sem sinal', () => {
 test('ferramenta em andamento só fica sem sinal depois de 2 horas', () => {
   const longTool = firstSession([ev(70, 'SessionStart'), ev(60, 'PreToolUse', { tool: 'Bash' })]);
   assert.deepEqual([longTool.status, longTool.sinceLabel], ['running', 'rodando há 1 h']);
+  assert.equal(firstSession([ev(200, 'SessionStart'), evSecondsAgo(7199, 'PreToolUse', { tool: 'Bash' })]).status, 'running');
   assert.equal(firstSession([ev(200, 'SessionStart'), evSecondsAgo(7201, 'PreToolUse', { tool: 'Bash' })]).status, 'stale');
 });
 
@@ -343,12 +373,29 @@ test('ações do dia contam só os eventos do dia', () => {
   assert.deepEqual(session.actionsByDay, { '2026-11-11': 5, '2026-11-12': 3 });
 });
 
+const weekPrimaryByDay = (week) => Object.fromEntries(week.days.map(({ day, tokens: usage }) => [day, usage.primary]));
+
 test('semana soma os dias sem contar em dobro', () => {
-  const sessions = allSessionsOf(sp(twoDaySession));
-  const week = weekTokens(sessions, dayOptions(NOW_SP, SP).map(({ day }) => day));
+  const week = buildWeekTokens(twoDaySession, NOW_SP, SP);
   assert.equal(week.total.primary, 160000);
   assert.equal(week.days.length, 7);
   assert.deepEqual(week.days.slice(0, 2).map(({ tokens: usage }) => usage.primary), [60000, 100000]);
+});
+
+test('semana inclui sessão encerrada ontem, que o mapa de hoje não mostra', () => {
+  const events = [
+    evAt('2026-11-11T20:00:00-03:00', 'SessionStart'),
+    evAt('2026-11-11T22:00:00-03:00', 'Stop', tokens(90000, 10000)),
+    evAt('2026-11-11T23:00:00-03:00', 'SessionEnd'),
+  ];
+  assert.equal(allSessionsOf(sp(events)).length, 0);
+  assert.deepEqual(weekPrimaryByDay(buildWeekTokens(events, NOW_SP, SP)), { '2026-11-12': 0, '2026-11-11': 100000, '2026-11-10': 0, '2026-11-09': 0, '2026-11-08': 0, '2026-11-07': 0, '2026-11-06': 0 });
+});
+
+test('semana não muda com o dia visto no mapa', () => {
+  const week = buildWeekTokens(twoDaySession, NOW_SP, SP);
+  assert.equal(week.total.primary, 160000);
+  assert.equal(allSessionsOf(sp(twoDaySession, NOW_SP, { day: '2026-11-11' }))[0].tokens.total.primary, 100000);
 });
 
 test('sessão nova hoje conta tudo; sem início guardado o dia começa do zero', () => {
@@ -369,8 +416,8 @@ test('queda do acumulado não gera tokens negativos', () => {
     evAt('2026-11-12T08:00:00-03:00', 'Stop', tokens(15000, 5000)),
     evAt('2026-11-12T09:00:00-03:00', 'Stop', tokens(30000, 5000)),
   ]));
-  assert.equal(session.tokens.day.primary, 195000);
-  assert.equal(session.tokens.conversation.primary, 195000);
+  assert.equal(session.tokens.day.primary, 175000);
+  assert.equal(session.tokens.conversation.primary, 175000);
 });
 
 test('sessão iniciada ontem leva a marca de início', () => {
@@ -379,6 +426,45 @@ test('sessão iniciada ontem leva a marca de início', () => {
   const threeDaysStart = [evAt('2026-11-09T22:40:00-03:00', 'SessionStart'), evAt('2026-11-12T08:00:00-03:00', 'PostToolUse', { tool: 'Read' })];
   assert.equal(allSessionsOf(sp(threeDaysStart))[0].startedLabel, 'começou há 3 dias, às 22:40');
   assert.equal(allSessionsOf(sp([evAt('2026-11-12T07:00:00-03:00', 'SessionStart'), evAt('2026-11-12T08:00:00-03:00', 'PostToolUse', { tool: 'Read' })]))[0].startedLabel, null);
+});
+
+test('evento com horário um pouco à frente do relógio do navegador aparece e acende', () => {
+  const session = firstSession([evSecondsAgo(-5, 'PostToolUse', { tool: 'Read' })]);
+  assert.deepEqual([session?.status, session?.lit], ['running', true]);
+});
+
+test('sessão que começou sem SessionStart guardado não conta o primeiro Stop', () => {
+  const [session] = allSessionsOf(sp([evAt('2026-11-09T08:00:00-03:00', 'Stop', tokens(300000, 100000)), evAt('2026-11-12T08:00:00-03:00', 'Stop', tokens(330000, 110000))]));
+  assert.deepEqual([session.startMissing, session.tokens.day.primary, session.startMissingNotice], [true, 40000, 'início não guardado']);
+});
+
+test('sessão com início guardado não traz o aviso', () => {
+  assert.equal(allSessionsOf(sp([evAt('2026-11-12T08:00:00-03:00', 'SessionStart', { summary: 'startup' })]))[0].startMissingNotice, null);
+});
+
+test('retomada marca a volta mesmo com intervalo curto, se a sessão estava em sua vez', () => {
+  const [person] = sp([evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:55:00-03:00', 'Stop'), evAt('2026-11-12T00:03:00-03:00', 'PreToolUse', { tool: 'Read' })]);
+  assert.equal(person.sessions[0].resumedAt, 'retomada às 00:03');
+});
+
+test('sessão que seguia trabalhando na virada do dia não leva marca de retomada', () => {
+  const [person] = sp([evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:59:00-03:00', 'PostToolUse', { tool: 'Read' }), evAt('2026-11-12T00:01:00-03:00', 'PostToolUse', { tool: 'Read' })]);
+  assert.equal(person.sessions[0].resumedAt, null);
+});
+
+test('workflow grande traz o texto dos concluídos escondidos', () => {
+  const agents = Array.from({ length: 8 }, (_, index) => `a${index + 1}`);
+  const events = [
+    ev(100, 'PostToolUse', { tool: 'Workflow', workflow_run_id: 'wf_1', workflow_name: 'revisao' }),
+    ...agents.flatMap((id, index) => [ev(99 - index, 'SubagentStart', { agent_id: id, agent_type: 'workflow-subagent' }), ...(index < 4 ? [stopAgent(50 - index, id, tokens(1, 1), { workflow_run_id: 'wf_1' })] : [])]),
+  ];
+  assert.equal(firstSession(events).workflows[0].hiddenDoneLabel, '4 concluídos · mostrar');
+  assert.equal(firstSession(workflowWithAgents(() => 'x', 2)).workflows[0].hiddenDoneLabel, null);
+});
+
+test('SessionStart de retomada não conta como início', () => {
+  const [session] = allSessionsOf(sp([evAt('2026-11-11T22:40:00-03:00', 'SessionStart', { summary: 'resume' }), evAt('2026-11-12T08:00:00-03:00', 'PostToolUse', { tool: 'Read' })]));
+  assert.deepEqual([session.startedLabel, session.startMissing], [null, true]);
 });
 
 test('sessão com eventos depois do dia leva a marca de continuação', () => {
@@ -430,13 +516,18 @@ test('com o painel desconectado o agora é a última atualização', () => {
 test('sessão parada de ontem não conta na aba', () => {
   const now = Date.parse('2026-11-12T09:00:00-03:00');
   const board = sp([evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:50:00-03:00', 'Stop')], now);
-  assert.deepEqual(tabIndicator(allSessionsOf(board)), { title: 'Painel de agentes', dot: false });
+  assert.deepEqual(tabIndicator(mapSessionsOf(board)), { title: 'Painel de agentes', dot: false });
+});
+
+test('sua vez recente de antes da meia-noite fica fora do ponto da aba', () => {
+  const board = sp([evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:50:00-03:00', 'Stop')], Date.parse('2026-11-12T00:10:00-03:00'));
+  assert.deepEqual([board[0].openIdle.length, tabIndicator(mapSessionsOf(board)).dot], [1, false]);
 });
 
 test('pedido de permissão de ontem ainda conta até virar sua vez', () => {
   const events = [evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:50:00-03:00', 'Notification', { summary: 'permission_prompt: x' })];
   const board = sp(events, Date.parse('2026-11-12T00:30:00-03:00'));
-  assert.equal(tabIndicator(allSessionsOf(board)).title, '(1) Painel de agentes');
+  assert.equal(tabIndicator(mapSessionsOf(board)).title, '(1) Painel de agentes');
 });
 
 const twoSessions = (secondEvents) => [

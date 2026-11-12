@@ -82,3 +82,26 @@ Criei módulos-stub com os nomes finais (retornando `undefined`/vazio) e as asse
 - `startMissing` pode avisar à toa numa sessão cujo hook foi instalado no meio dela com 6+ dias; improvável pelo prazo de 7 dias.
 - `app.js` só foi ajustado para não quebrar; mostra os três grupos juntos até a F3.
 - Fora de F1: R52–R57 (F2), R78–R82 (F3).
+
+## Rodada 2 — correções da revisão (commit `fix(painel): correções da revisão da F1`)
+Revisão de lógica `docs/fases/revisoes/F1-logica-r1.md` e bateria `F1-bateria-r1.md`. Os testes novos foram escritos antes e falharam (13 falhas na primeira rodada: aguardando de `agent_needs_input` e de agentes irmãos, semana, R72, evento à frente do relógio, `startMissing`, aviso/`hiddenDoneLabel`, retomada, Santiago); depois da correção, 133 testes verdes.
+
+| # | Achado | O que foi feito |
+|---|---|---|
+| 1 BLOQUEANTE | R72 somava o valor novo na queda | `growthSince` usa `max(0, atual − anterior)` por campo; a base recomeça no valor novo. 160 → 20 → 35 mil = 175 mil (dia e conversa). **A decisão 4 da rodada 1 está revogada.** |
+| 2 IMPORTANTE | `agent_needs_input` deixou de contar | `agent_needs_input` e `elicitation_dialog` contam como aguardando; só `idle_prompt` é "sua vez". **Não medido:** o que `AskUserQuestion` gera (se gera `Notification`); fica para o primeiro uso real. |
+| 3 IMPORTANTE | semana dependia do mapa do dia | `buildWeekTokens(events, now, timeZone)` agrupa todos os eventos carregados por sessão, sem corte por dia visto nem por grupo; testes: sessão encerrada ontem entra, e a semana não muda com o dia visto. `weekTokens` continua puro. Os tokens por dia passaram a vir de `sessionTokens` (usage.js), usado pelo board e pela semana. Efeito: `SubagentStop` de agente cujo início não foi carregado também conta tokens. |
+| 4 IMPORTANTE | ponto da aba com sessão de `openIdle` | o chamador passa só `person.sessions` ao `tabIndicator` (app.js); teste com Stop 23:50 e agora 00:10 confere `dot: false`. O teste documenta a convenção (o `tabIndicator` em si não sabe de grupos). |
+| 5 MENOR | relógio do navegador atrás do banco | ao vivo, o "agora" do board é `max(relógio, último evento)`; o corte por `created_at <= agora` só vale com a vista congelada. Teste: evento 5 s à frente aparece e acende. |
+| 6 MENOR | retomada com intervalo curto | `resumedAt` agora olha o estado da sessão antes da retomada (sua vez ou sem sinal), calculado pela mesma regra do estado. Stop 23:55 → 00:03 marca; trabalho contínuo na virada não marca. |
+| 7 MENOR | primeiro Stop contado inteiro sem SessionStart | `startMissing` vale para qualquer sessão cujo primeiro evento guardado não é um `SessionStart` de início (sem regra de 6 dias). Revoga a decisão 3 parcialmente. |
+| 8 MENOR | dia sem meia-noite (Santiago) | `dayBounds` avança até a primeira hora que pertence ao dia; teste com `America/Santiago`, 06/09/2026. |
+| 9 MENOR | limite do R8 | teste de 7199 s → `running`. |
+
+Decisões do condutor aplicadas:
+- (b) Aviso de espera só sai com evento da mesma origem (`agent_id` igual, ou conversa principal se o aviso não tem), `UserPromptSubmit`, `Stop` ou `SessionEnd`. Evento de agente irmão não limpa. `Stop` e `SessionEnd` entraram como exceção para o fim de resposta/sessão não deixar aviso preso. A hora do "aguardando" (`statusSince`) é a do aviso, não a do último evento.
+- (c) ver achado 3.
+
+Lacunas da bateria: R22 (teste "SessionStart de retomada não conta como início"), R47 (`hiddenDoneLabel` = "4 concluídos · mostrar") e R71 (`startMissingNotice` = "início não guardado") ganharam asserção.
+
+Fora do que foi corrigido: o `send.sh` corta o resultado do `SubagentStop` em 160 caracteres (veredito no fim de resposta longa não é detectado) e o `source` do `SessionStart` entrar no plano da F2 — registrados para a F2.

@@ -49,3 +49,7 @@ test('marca de continuação nomeia o dia em que a atividade segue', () => {
   assert.equal(continuationLabel('2026-11-11T08:00:00-03:00', '2026-11-12', SP), 'continua ontem');
   assert.equal(continuationLabel('2026-11-10T08:00:00-03:00', '2026-11-12', SP), 'continua em 10/11');
 });
+
+test('dia sem meia-noite local começa na primeira hora que existe', () => {
+  assert.deepEqual(dayBounds('2026-09-06', 'America/Santiago'), { from: '2026-09-06T04:00:00.000Z', to: '2026-09-07T03:00:00.000Z' });
+});
