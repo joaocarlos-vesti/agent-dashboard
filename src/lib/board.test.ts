@@ -84,6 +84,17 @@ test('aviso sem origem com ferramenta da conversa principal em andamento sai com
   assert.equal(firstSession([...events, ev(6, 'PostToolUse', { tool: 'Bash' })]).status, 'running');
 });
 
+test('aviso sem origem ignora a conversa principal que só espera o subagente da ferramenta Agent', () => {
+  const events = [ev(12, 'PreToolUse', { tool: 'Agent' }), agentStarted(11, 'a1'), toolInFlight(10, 'a1'), permissionNotice(9)];
+  assert.equal(firstSession(events).status, 'waiting');
+  assert.equal(firstSession([...events, siblingAction(8, 'a1')]).status, 'running');
+});
+
+test('sessão sem nenhum pedido não vira sua vez só com idle_prompt', () => {
+  const session = firstSession([ev(5, 'SessionStart'), ev(4, 'Notification', { summary: 'idle_prompt: Claude is waiting for your input' })]);
+  assert.equal(session.status, 'running');
+});
+
 test('aguardando expira 2 h depois do próprio aviso, mesmo com a sessão ativa', () => {
   const events = [evAt('2026-11-12T10:00:00Z', 'Notification', { summary: 'permission_prompt: x' }), evAt('2026-11-12T11:59:00Z', 'PostToolUse', { agent_id: 'a2', tool: 'Read' })];
   assert.equal(firstSession(events, Date.parse('2026-11-12T11:59:30Z')).status, 'waiting');

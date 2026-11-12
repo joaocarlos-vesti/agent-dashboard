@@ -130,3 +130,13 @@ Testes vermelhos primeiro (3 falharam), depois a correção em `src/lib/board.ts
 
 Efeito colateral: o `idle_prompt` agora entra no corte do board, mas é removido dos eventos da sessão (tokens, marcas de dia, `lastAt`) e da semana; só o estado o enxerga.
 Pendente de medição real: se o `Notification` de um subagente traz `agent_id` (a regra do N1 cobre o caso em que não traz).
+
+## Rodada 4 — aviso sem agente e ferramenta Agent (commit `fix(painel): aviso sem agente ignora a ferramenta Agent (F1 r4)`)
+
+Dois testes vermelhos primeiro; agora 140 testes e `tsc --noEmit` verdes.
+
+| Achado | O que foi feito |
+|---|---|
+| N4 IMPORTANTE | `ownerOfNotice` não conta como candidata a origem cuja ferramenta em andamento é `Agent` ou `Task` (quem espera subagente não pede permissão). Teste: `Agent` → a1 `Bash` → aviso sem `agent_id` → a1 conclui → sai de "aguardando". |
+| N5 MENOR | `idle_prompt` só vale como "sua vez" se a sessão já teve algum evento além do `SessionStart`. Teste: `SessionStart` + `idle_prompt` → "rodando". |
+| N6 MENOR | Registrado em `docs/spec.md` (seção "Estados (6)"): o "aguardando você" expira 2 h depois do próprio aviso. Só essa linha foi para o commit; a linha "Stack" do condutor continua fora dele, sem commit. |

@@ -53,33 +53,42 @@ const originOf = (event: AgentEvent) => event.agent_id ?? null;
 const clearsWaiting = (event: AgentEvent, owner: string | null) =>
   ['UserPromptSubmit', 'Stop', 'SessionEnd'].includes(event.event) || originOf(event) === owner;
 
-// Aviso sem agent_id é do único agente com ferramenta em andamento; com zero ou vários candidatos, da conversa principal.
-function ownerOfNotice(notice: AgentEvent, originsWithToolInFlight: Set<string | null>): string | null {
+const DELEGATING_TOOLS = new Set(['Agent', 'Task']);
+
+// Aviso sem agent_id é da única origem com ferramenta em andamento; com zero ou vários candidatos, da conversa principal.
+// Quem espera um subagente (Agent/Task) não pede permissão, então não é candidato.
+function ownerOfNotice(notice: AgentEvent, toolInFlightByOrigin: Map<string | null, string | null | undefined>): string | null {
   if (notice.agent_id) return notice.agent_id;
-  return originsWithToolInFlight.size === 1 ? [...originsWithToolInFlight][0] ?? null : null;
+  const candidates = [...toolInFlightByOrigin].filter(([, tool]) => !DELEGATING_TOOLS.has(tool ?? '')).map(([origin]) => origin);
+  return candidates.length === 1 ? candidates[0] ?? null : null;
 }
 
 function pendingWaitingOf(events: AgentEvent[]): AgentEvent | null {
-  const originsWithToolInFlight = new Set<string | null>();
+  const toolInFlightByOrigin = new Map<string | null, string | null | undefined>();
   let notice: AgentEvent | null = null;
   let owner: string | null = null;
   for (const event of events) {
     if (isWaitingNotification(event)) {
       notice = event;
-      owner = ownerOfNotice(event, originsWithToolInFlight);
+      owner = ownerOfNotice(event, toolInFlightByOrigin);
     } else if (notice && clearsWaiting(event, owner)) notice = null;
     if (isToolEvent(event)) {
-      if (event.event === 'PreToolUse') originsWithToolInFlight.add(originOf(event));
-      else originsWithToolInFlight.delete(originOf(event));
+      if (event.event === 'PreToolUse') toolInFlightByOrigin.set(originOf(event), event.tool);
+      else toolInFlightByOrigin.delete(originOf(event));
     }
   }
   return notice;
 }
 
-// idle_prompt vale como "sua vez" só se nenhum evento de trabalho veio depois (ex.: Esc no meio de uma ferramenta, que não gera Stop).
+// idle_prompt vale como "sua vez" só se nenhum evento de trabalho veio depois (ex.: Esc no meio de uma ferramenta, que não gera Stop)
+// e a sessão já teve algum pedido (um SessionStart sozinho não é trabalho).
 function pendingIdleOf(events: AgentEvent[]): AgentEvent | null {
   let notice: AgentEvent | null = null;
-  for (const event of events) notice = isIdleNotification(event) ? event : null;
+  let hadWork = false;
+  for (const event of events) {
+    notice = isIdleNotification(event) && hadWork ? event : null;
+    if (!isIdleNotification(event) && event.event !== 'SessionStart') hadWork = true;
+  }
   return notice;
 }
 

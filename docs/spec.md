@@ -97,7 +97,7 @@ Protótipo de referência: canvas "Painel de agentes", página "v2.2 — mapa vi
 | **sem sinal** | sem evento há 10 min, ou 2 h com agente/ferramenta em andamento | — |
 | **encerrada** | `SessionEnd` | — |
 
-- "Aguardando você" sem nenhum evento por 2 h vira "sua vez".
+- "Aguardando você" vira "sua vez" 2 h depois do **próprio aviso**, mesmo com outros eventos chegando na sessão (decisão da rodada 3 da F1).
 - **Correção de bug:** hoje o painel marca "aguardando você" quando o último evento é um `Stop`. Por isso o título da aba conta sessões paradas de ontem.
 - **Fácil de trocar:** se o dono quiser, "sua vez" também passa a contar no título.
 - O estado aparece sempre como **palavra + ícone**, nunca só por cor.
