@@ -21,14 +21,14 @@ export async function fetchWeekTokenRows(timeZone: string): Promise<WeekTokensRo
   return rows;
 }
 
-interface ConnectionStatusRow { has_key: boolean; last_event_at: string | null }
+interface ConnectionStatusRow { has_key: boolean; key_created_at: string | null; last_event_at: string | null }
 
 /** Se o login tem chave e quando chegou o último evento; só lê, não gera nada. */
 export async function fetchConnectionStatus(): Promise<ConnectionStatus> {
   const { data: rows, error } = await supabase.rpc('my_connection_status');
   if (error) throw new Error(error.message);
   const [row]: ConnectionStatusRow[] = rows;
-  return { hasKey: row?.has_key === true, lastEventAt: row?.last_event_at ?? null };
+  return { hasKey: row?.has_key === true, keyCreatedAt: row?.key_created_at ?? null, lastEventAt: row?.last_event_at ?? null };
 }
 
 /** Gera a chave nova e desliga a anterior. */

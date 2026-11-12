@@ -3,10 +3,12 @@ import { connectReducer, connectView, initialConnectState, type ConnectAction, t
 
 const NOW = Date.parse('2026-11-12T12:00:00Z');
 const KEY = '11111111-2222-3333-4444-555555555555';
-const context = { now: NOW, origin: 'https://painel.example', networkHost: 'abc.supabase.co' };
+const context = { now: NOW, origin: 'https://painel.example', networkHost: 'abc.supabase.co', timeZone: 'UTC' };
 const run = (actions: ConnectAction[], from: ConnectState = initialConnectState): ConnectState => actions.reduce(connectReducer, from);
-const connected = run([{ type: 'statusLoaded', status: { hasKey: true, lastEventAt: '2026-11-12T11:57:00Z' } }]);
-const neverConnected = run([{ type: 'statusLoaded', status: { hasKey: false, lastEventAt: null } }]);
+const connected = run([{ type: 'statusLoaded', status: { hasKey: true, keyCreatedAt: '2026-11-12T10:00:00Z', lastEventAt: '2026-11-12T11:57:00Z' } }]);
+const neverConnected = run([{ type: 'statusLoaded', status: { hasKey: false, keyCreatedAt: null, lastEventAt: null } }]);
+
+const KEY_WITHOUT_EVENT_HINT = 'Conexão gerada às 10:00 — ainda não chegou nenhum evento. Rode no seu terminal o comando que apareceu ao gerar, ou gere uma nova conexão.';
 
 describe('estado da tela Conectar (T58)', () => {
   test('ao abrir, só consulta: nada é gerado e nenhuma ação é oferecida', () => {
@@ -42,10 +44,22 @@ describe('estado da tela Conectar (T58)', () => {
     expect(view.action?.label).toBe('Gerar conexão');
   });
 
-  test('chave gerada mas nenhum evento: ainda não conectado, com a explicação', () => {
-    const view = connectView(run([{ type: 'statusLoaded', status: { hasKey: true, lastEventAt: null } }]), context);
+  test('chave gerada mas nenhum evento: ainda não conectado, com a hora da chave', () => {
+    const view = connectView(run([{ type: 'statusLoaded', status: { hasKey: true, keyCreatedAt: '2026-11-12T10:00:00Z', lastEventAt: null } }]), context);
     expect(view.headline).toBe('Ainda não conectado');
-    expect(view.hint).toBe('Já existe uma conexão gerada, mas nenhum evento chegou ainda. Rode o comando no computador e abra uma sessão nova do Claude Code.');
+    expect(view.hint).toBe(KEY_WITHOUT_EVENT_HINT);
+  });
+
+  test('último evento anterior à chave atual (chave 10:00, evento 09:58) não é conexão', () => {
+    const view = connectView(run([{ type: 'statusLoaded', status: { hasKey: true, keyCreatedAt: '2026-11-12T10:00:00Z', lastEventAt: '2026-11-12T09:58:00Z' } }]), context);
+    expect(view.headline).toBe('Ainda não conectado');
+    expect(view.hint).toBe(KEY_WITHOUT_EVENT_HINT);
+    expect(view.action?.label).toBe('Gerar nova conexão');
+  });
+
+  test('evento depois da chave atual é conexão', () => {
+    const view = connectView(run([{ type: 'statusLoaded', status: { hasKey: true, keyCreatedAt: '2026-11-12T10:00:00Z', lastEventAt: '2026-11-12T10:01:00Z' } }]), context);
+    expect(view.headline).toBe('Conectado · último evento há 1 h');
   });
 
   test('com conexão existente, pedir uma nova só pede a confirmação (não gera)', () => {

@@ -11,6 +11,7 @@ import type { AgentEvent } from './lib/types';
 export type { Access };
 
 const CLOCK_TICK_MS = 30000;
+const SUBSCRIBE_TIMEOUT_MS = 10000;
 
 interface PastDay { day: string; events: AgentEvent[]; error: string | null }
 
@@ -93,15 +94,21 @@ export function useDashboard(viewedDay?: string) {
     if (!isMember) return;
     // A carga não espera o canal ao vivo: se o websocket falhar, o dia aparece e o aviso de conexão fica ligado.
     void loadToday();
+    // Canal que fica só tentando conectar não dá erro: sem resposta em 10 s, o cabeçalho deixa de dizer "Ao vivo".
+    const subscribeTimeout = setTimeout(() => setIsLive(false), SUBSCRIBE_TIMEOUT_MS);
     const channel = supabase.channel('events')
       .on<AgentEvent>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, ({ new: insertedEvent }) => void showLiveEvent(insertedEvent))
       .subscribe((channelStatus) => {
         setIsLive(channelStatus === 'SUBSCRIBED');
-        if (channelStatus === 'SUBSCRIBED') void loadToday();
+        if (channelStatus === 'SUBSCRIBED') {
+          clearTimeout(subscribeTimeout);
+          void loadToday();
+        }
       });
     const clock = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
     return () => {
       clearInterval(clock);
+      clearTimeout(subscribeTimeout);
       void supabase.removeChannel(channel);
     };
   }, [isMember, loadToday, showLiveEvent]);

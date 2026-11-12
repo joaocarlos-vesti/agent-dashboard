@@ -1,6 +1,6 @@
-import { formatRelativeTime } from './format';
+import { exactTime, formatRelativeTime } from './format';
 
-export interface ConnectionStatus { hasKey: boolean; lastEventAt: string | null }
+export interface ConnectionStatus { hasKey: boolean; keyCreatedAt: string | null; lastEventAt: string | null }
 
 type StatusState = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'ready'; value: ConnectionStatus };
 type StepState = { kind: 'idle' } | { kind: 'confirming' } | { kind: 'generating' } | { kind: 'generated'; key: string; copied: boolean } | { kind: 'failed' };
@@ -49,7 +49,7 @@ export function connectReducer(state: ConnectState, action: ConnectAction): Conn
   }
 }
 
-export interface ConnectContext { now: number; origin: string; networkHost: string }
+export interface ConnectContext { now: number; origin: string; networkHost: string; timeZone: string | undefined }
 export interface ConnectView {
   headline: string;
   hint: string | null;
@@ -61,25 +61,33 @@ export interface ConnectView {
 }
 
 const CONFIRMATION_TEXT = 'Isso desliga o Claude Code já conectado, no terminal e na nuvem. Depois você roda o comando de novo em cada lugar.';
-const KEY_WITHOUT_EVENTS_HINT = 'Já existe uma conexão gerada, mas nenhum evento chegou ainda. Rode o comando no computador e abra uma sessão nova do Claude Code.';
 const GENERATE_FAILED_TEXT = 'Não foi possível gerar a conexão. Confira a internet e tente de novo.';
 const NEW_KEY_HINT = 'A conexão anterior foi desligada. Rode o comando abaixo para conectar de novo.';
 
 const EMPTY_VIEW: ConnectView = { headline: '', hint: null, error: null, canRetryStatus: false, action: null, confirmation: null, install: null };
 
-function overviewOf(status: ConnectionStatus, now: number): Pick<ConnectView, 'headline' | 'hint'> & { actionLabel: string } {
-  if (status.lastEventAt) return { headline: `Conectado · último evento ${formatRelativeTime(status.lastEventAt, now)}`, hint: null, actionLabel: 'Gerar nova conexão' };
+// Evento anterior à chave atual veio da chave já desligada: não prova que a conexão atual funciona.
+const hasEventSinceKey = ({ keyCreatedAt, lastEventAt }: ConnectionStatus) =>
+  lastEventAt !== null && (keyCreatedAt === null || Date.parse(lastEventAt) > Date.parse(keyCreatedAt));
+
+const keyWithoutEventHint = (keyCreatedAt: string | null, timeZone: string | undefined) => {
+  const generatedAt = keyCreatedAt ? ` às ${exactTime(keyCreatedAt, timeZone).slice(-5)}` : '';
+  return `Conexão gerada${generatedAt} — ainda não chegou nenhum evento. Rode no seu terminal o comando que apareceu ao gerar, ou gere uma nova conexão.`;
+};
+
+function overviewOf(status: ConnectionStatus, { now, timeZone }: Pick<ConnectContext, 'now' | 'timeZone'>): Pick<ConnectView, 'headline' | 'hint'> & { actionLabel: string } {
+  if (status.lastEventAt && hasEventSinceKey(status)) return { headline: `Conectado · último evento ${formatRelativeTime(status.lastEventAt, now)}`, hint: null, actionLabel: 'Gerar nova conexão' };
   return status.hasKey
-    ? { headline: 'Ainda não conectado', hint: KEY_WITHOUT_EVENTS_HINT, actionLabel: 'Gerar nova conexão' }
+    ? { headline: 'Ainda não conectado', hint: keyWithoutEventHint(status.keyCreatedAt, timeZone), actionLabel: 'Gerar nova conexão' }
     : { headline: 'Ainda não conectado', hint: null, actionLabel: 'Gerar conexão' };
 }
 
 /** O que a tela Conectar mostra, em texto pronto. */
-export function connectView(state: ConnectState, { now, origin, networkHost }: ConnectContext): ConnectView {
+export function connectView(state: ConnectState, { now, origin, networkHost, timeZone }: ConnectContext): ConnectView {
   const { status, step } = state;
   if (status.kind === 'loading') return { ...EMPTY_VIEW, headline: 'Consultando a conexão…' };
   if (status.kind === 'failed') return { ...EMPTY_VIEW, headline: 'Conexão', error: `Não foi possível consultar a conexão: ${status.message}.`, canRetryStatus: true };
-  const overview = overviewOf(status.value, now);
+  const overview = overviewOf(status.value, { now, timeZone });
   if (step.kind === 'generated') {
     return {
       ...EMPTY_VIEW, headline: 'Nova conexão gerada', hint: NEW_KEY_HINT,

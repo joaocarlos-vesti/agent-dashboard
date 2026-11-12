@@ -85,3 +85,10 @@ Revisão: `docs/fases/revisoes/` (r1 da F3). Verificações: `npm test` 20 arqui
 | Spec | "Medido em 12/11/2026" ganhou a causa do `summary` nulo e a regra da tela Conectar. |
 
 Ações do dono: rodar `supabase/migrations/005_estado_da_conexao.sql`; fazer o deploy; rodar o comando de conexão de novo em cada máquina.
+
+## Rodada 3
+
+| Achado | O que foi feito |
+|---|---|
+| N1 IMPORTANTE: "Conectado" ignorava a data da chave | `ConnectionStatus` leva `keyCreatedAt` (a RPC já devolvia; a migração 005 não mudou). "Conectado" só com `lastEventAt` posterior à chave; senão "Ainda não conectado" com "Conexão gerada às HH:MM — ainda não chegou nenhum evento…". Teste vermelho primeiro, com o caso chave 10:00 e evento 09:58. Diferença para o pedido: o comando não aparece, porque a chave só existe na tela no momento em que é gerada (a RPC não a devolve); o texto manda rodar o comando que apareceu ao gerar ou gerar uma nova conexão. |
+| N2 MENOR: canal que nunca responde mantinha "Ao vivo" | Sem `SUBSCRIBED` em 10 s, `isLive` vira falso; o timer é limpo ao assinar e ao sair. Sem teste (efeito de tela). |

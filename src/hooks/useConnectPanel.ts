@@ -49,7 +49,7 @@ export function useConnectPanel() {
     }
   }, []);
 
-  const view = connectView(state, { now: Date.now(), origin: window.location.origin, networkHost: NETWORK_HOST });
+  const view = connectView(state, { now: Date.now(), origin: window.location.origin, networkHost: NETWORK_HOST, timeZone: undefined });
   const retryStatus = () => {
     dispatch({ type: 'retryStatus' });
     setStatusAttempt((attempt) => attempt + 1);
