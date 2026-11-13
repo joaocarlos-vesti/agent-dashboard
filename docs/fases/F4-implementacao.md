@@ -83,3 +83,21 @@ Verificações: `npm test` 394 verdes, `npx tsc --noEmit` limpo, `npx vite build
 | R72, R1 | Mantidos; registrados na spec. |
 
 Os commits `2d6f6ca`, `bffe877` e `69b682f` são de instância minha; `e883f25` (andamento do fechamento) não é meu.
+
+## Revisão de UX e UI (ux-ui-r1)
+
+Itens crítico, alto e médio corrigidos em `fix(painel): correções da revisão de UX e UI`; os baixos (B1–B4) e o M5 ficaram na spec como pendência.
+
+| Achado | O que foi feito |
+|---|---|
+| C1: cards sem clique | `pointer-events: all !important` nos nós do React Flow (o estilo inline do React Flow vence a regra sem `!important`). Prova no DOM (Chrome sem cabeça, página de teste apagada): `elementFromPoint` no centro dos 9 nós iniciais devolve o nó; cliques em card, seta, "N concluídos · mostrar" e "Encerradas hoje" funcionam. |
+| A1: clique no card | `select` aceita `openChildren`; o card com filhos abre o detalhe e os filhos, e o segundo clique não fecha. A seta recolhe e expande (teste vermelho antes no reducer). |
+| A2: cor | Brilho terracota na última ação (`actionKey` reinicia a animação), pulso verde 3 s ao concluir (`justFinished`), "hoje" terracota na semana (`isToday`), "aguardando" em âmbar claro, últimas colunas do ritmo em terracota claro. |
+| A3: sessões de mesmo nome | `originNote` (`branch · iniciada HH:MM`) só quando a pasta se repete; linha do estado quebra sem cortar o tempo. |
+| A4: mostrador × cards | Rótulo "agindo agora (12 s)"; título do dia "Hoje, ..."; resumo do dia no painel vazio. |
+| M2 | `aria-label` nos chips da faixa. |
+| M3 | `aria-label` do seletor de dia com "Hoje, ...". |
+| M4 | Painel vazio com o resumo do dia (`gauge.summary`). |
+| M5 | Mantido; registrado na spec. |
+
+`pluralize` virou função única em `format.ts` (antes duplicada). Verificações: `npm test` 415 verdes, `npx tsc --noEmit` limpo, `npx vite build` ok.

@@ -276,6 +276,7 @@ Funções puras, testadas com `node:test` (`npm test`). `now` e o fuso entram po
 | R80 | Reducer: seleção | `clicar na faixa seleciona o item` | `select(agentId)` → `selected: agentId`, painel aberto; `close` → nada selecionado | Faixa; Painel | F3 |
 | R81 | Reducer: mostrador | `clicar em tokens abre os 7 dias; ? abre o como ler` | `openGauge('tokens')` → `gauge: tokens`; `openGauge('help')` → `gauge: help` | Mostrador | F3 |
 | R82 | Reducer: expandir | `mostrar concluídos e abrir grupos recolhidos` | `expand(workflowId)` → `hiddenDone` some; `toggleGroup('endedToday')` → aberto | Cards | F3 |
+| R83 | Reducer: clique no card | `clicar num card abre o detalhe e abre os filhos, sem nunca fechá-los` | `select(id, openChildren)` → `selected: id` e `nodeOpen[id]` verdadeiro; clicar de novo mantém aberto; a seta (`setNodeOpen`) é o único atalho que recolhe | Cards | F3 (revisão de UX) |
 
 ## Matriz de testes — estados e interações das telas
 
@@ -418,3 +419,17 @@ Seguem supostos: formato real do `Notification`; identificador da sessão na nuv
 
 - 13/11: **F4 aprovada** (`5c60f85`, `fecd487`, `daa0e8b`). **Boas práticas aprovada** (`69b682f`, `2d6f6ca`). **Verificador de critérios:** 122/133 provadas; frouxas reforçadas em `271dede`/`b84d1cc`; nuvem fora da UI (sem dado). 407 testes. Migrations 003, 004 e 005 rodadas pelo dono.
 - Próximo: publicar (com OK do dono) e validação visual pelo dono no site; depois push/merge da branch na main só com OK.
+
+## Revisão de UX e UI (13/11/2026)
+
+Aprovada pelo dono; correções em `fix(painel): correções da revisão de UX e UI`.
+
+- **Decisão revogada:** "a seta é o único jeito de expandir" saiu. Como no protótipo, clicar no card abre o detalhe e também abre os filhos (nunca fecha); a seta continua sendo o atalho para recolher e expandir sem mudar a seleção (R83).
+- **Clique no mapa (crítico):** o React Flow desliga o ponteiro dos nós sem arraste, seleção ou clique, por estilo inline; `.map-canvas .react-flow__node { pointer-events: all !important; }` devolve o clique a cards, seta, "N concluídos · mostrar" e "Encerradas hoje". Prova no navegador sem cabeça: `elementFromPoint` no centro de cada nó devolve o próprio nó e o clique abre o painel e os filhos.
+- **Cor:** brilho terracota na linha da última ação quando muda; pulso verde de 3 s no card que acabou de concluir; "hoje" em terracota nas barras da semana; horário de "aguardando" em âmbar claro; últimas colunas do ritmo em terracota claro.
+- **Sessões de mesmo nome:** quando a pasta se repete, o card mostra `branch · iniciada HH:MM` (também no nome acessível); a linha do estado quebra em vez de cortar o tempo.
+- **Mostrador coerente:** "agindo agora (12 s)"; o título do dia diz "Hoje, ..." / "Ontem, ..." (também no nome acessível do seletor).
+- **Painel vazio:** mostra o resumo do dia (sessões, agentes e tokens).
+- **Chips da faixa de atenção:** ganharam nome acessível com nome e fato.
+- **Pendências (baixas, não implementadas):** B1 prefixo de plugin no título de agente longo (nome completo no `title`); B2 "0 tokens · sem agentes" em sessão rodando; B3 contorno de seleção igual ao foco; B4 posição do "Recolher tudo". M5 (atribuição "React Flow") mantida: a licença exige avaliação antes de esconder.
+- **Não verificado pela revisão:** larguras de 1200 e 720 px, teclado e movimento reduzido.
