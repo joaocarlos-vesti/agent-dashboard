@@ -406,4 +406,5 @@ Seguem supostos: formato real do `Notification`; identificador da sessão na nuv
 - **F3 aprovada** em 3 rodadas: `f699402` telas; `d03e671` Conectar sem gerar chave, carga sem depender do canal, origem no hook; `7e76d5c` Conectado só com evento após a chave. 373 testes.
 - `005_estado_da_conexao.sql` rodado pelo dono.
 - **F4 aprovada** em 2 rodadas: `5c60f85` movimento/larguras/aba; `fecd487` faísca em CSS numa camada própria; `daa0e8b` timers e memoização. 394 testes. Revisão r2 aprovada no chat (gravação do arquivo negada pelo sistema). Menor aberto: buildBoard ~53 ms/s em dia pesado pode engasgar a faísca.
-- Próximo: fechamento (boas práticas, critérios, navegador, publicação com OK).
+- Fechamento: boas práticas aprovadas na r2 (`69b682f`, `2d6f6ca`, `bffe877`); verificador de critérios: 33/38 fortes, os 4 fracos e a divergência R37 corrigidos. 404 testes.
+- **Esperando validação manual** do dono em http://localhost:5173 (Chrome da extensão não conectou). Publicação só com OK.
