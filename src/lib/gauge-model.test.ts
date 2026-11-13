@@ -20,7 +20,7 @@ const busy = [sessionStart(30), looseAgentStart(20, 'l1'), evSeconds(3, 'PostToo
 describe('mostrador (T22, T63)', () => {
   test('T22: agentes agindo, ações no último minuto e tokens de hoje', () => {
     expect(gaugeOf(busy).figures).toEqual([
-      { value: '1', label: 'agindo' },
+      { value: '1', label: 'agindo agora (12 s)' },
       { value: '1', label: 'ações/min' },
       { value: '12,4 mil', label: 'tokens hoje' },
     ]);
@@ -28,10 +28,20 @@ describe('mostrador (T22, T63)', () => {
 
   test('T63: em dia passado, o que é ao vivo vira "—" e os tokens são os do dia', () => {
     expect(gaugeOf(busy, { pastDay: true }).figures).toEqual([
-      { value: '—', label: 'agindo' },
+      { value: '—', label: 'agindo agora (12 s)' },
       { value: '—', label: 'ações/min' },
       { value: '12,4 mil', label: 'tokens neste dia' },
     ]);
+  });
+});
+
+describe('resumo do dia para o painel vazio', () => {
+  test('conta sessões, agentes e tokens do dia visto', () => {
+    expect(gaugeOf(busy).summary).toEqual({ title: 'Resumo · hoje', lines: ['1 sessão', '1 agente', '12,4 mil tokens'] });
+  });
+
+  test('dia sem sessões não inventa números', () => {
+    expect(gaugeOf([]).summary).toEqual({ title: 'Resumo · hoje', lines: ['0 sessões', '0 agentes', '0 tokens'] });
   });
 });
 
@@ -42,9 +52,9 @@ describe('últimos 7 dias (T23, T25)', () => {
       kind: 'ready',
       totalText: '5 mil',
       rows: [
-        { day: '2026-11-12', label: 'Hoje', tokensText: '4 mil', widthPct: 100, selected: true },
-        { day: '2026-11-11', label: 'Ontem', tokensText: '1 mil', widthPct: 25, selected: false },
-        { day: '2026-11-10', label: 'ter 10', tokensText: '0', widthPct: 0, selected: false },
+        { day: '2026-11-12', label: 'Hoje', tokensText: '4 mil', widthPct: 100, selected: true, isToday: true },
+        { day: '2026-11-11', label: 'Ontem', tokensText: '1 mil', widthPct: 25, selected: false, isToday: false },
+        { day: '2026-11-10', label: 'ter 10', tokensText: '0', widthPct: 0, selected: false, isToday: false },
       ],
     });
   });

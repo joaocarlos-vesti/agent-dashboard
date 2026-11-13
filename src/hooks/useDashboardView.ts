@@ -64,7 +64,7 @@ export function useDashboardView() {
   const screen = screenState({ access: dashboard.access, isLoadingDay: dashboard.isLoadingDay, historyError: dashboard.historyError, hasSessions: scene.hasSessions, pastDay });
   const isPanelShown = layoutMode.panel === 'fixed' || ui.panelOpen;
 
-  const activateCard = useCallback((card: CardModel) => dispatch({ type: 'select', id: card.id }), [dispatch]);
+  const activateCard = useCallback((card: CardModel) => dispatch({ type: 'select', id: card.id, openChildren: card.childCount > 0 }), [dispatch]);
   const toggleCard = useCallback((card: CardModel) => dispatch({ type: 'setNodeOpen', id: card.id, open: !card.open }), [dispatch]);
   const selectWithReveal = useCallback((id: string) => dispatch({ type: 'select', id, reveal: revealPathOf(scene.tree, id) ?? undefined, focus: true }), [dispatch, scene.tree]);
   const selectChip = useCallback((chip: StripChip) => dispatch({ type: 'select', id: chip.nodeId, reveal: chip.reveal ?? undefined, focus: true }), [dispatch]);

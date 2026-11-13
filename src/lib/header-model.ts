@@ -55,11 +55,14 @@ function waitingButtonOf(todayWaiting: AttentionItem[], todayTree: MapTree, now:
   };
 }
 
+// Hoje e Ontem entram no nome do botão, porque é isso que a tela mostra.
+const dayTitleOf = (day: string, label: string) => (label === 'Hoje' || label === 'Ontem' ? `${label}, ${longDayLabel(day)}` : longDayLabel(day));
+
 /** O que o cabeçalho mostra: horário da atualização, dias, aviso de dia congelado e o botão de quem espera você. */
 export function headerModel({ now, lastUpdateAt, timeZone, viewedDay, pastDay, todayWaiting, todayTree }: HeaderInput): HeaderModel {
   return {
     updatedText: updatedTextOf(lastUpdateAt, timeZone),
-    days: dayOptions(now, timeZone).map(({ day, label }) => ({ day, label, title: longDayLabel(day), pressed: day === viewedDay })),
+    days: dayOptions(now, timeZone).map(({ day, label }) => ({ day, label, title: dayTitleOf(day, label), pressed: day === viewedDay })),
     frozen: pastDay ? { text: `Você está vendo ${longDayLabel(viewedDay)}. Nada aqui se mexe.`, action: 'Voltar ao vivo' } : null,
     waiting: waitingButtonOf(todayWaiting, todayTree, now, timeZone),
   };

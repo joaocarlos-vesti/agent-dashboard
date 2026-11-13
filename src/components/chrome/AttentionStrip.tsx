@@ -11,7 +11,7 @@ export function AttentionStrip({ strip, onSelectChip }: AttentionStripProps) {
   return (
     <div className="attention-strip">
       {strip.chips.map((chip) => (
-        <button key={chip.key} type="button" className={`attention-chip attention-chip--${chip.tone}`} onClick={() => onSelectChip(chip)}>
+        <button key={chip.key} type="button" className={`attention-chip attention-chip--${chip.tone}`} aria-label={`${chip.name}, ${chip.fact}`} onClick={() => onSelectChip(chip)}>
           <Icon name={chip.icon} />
           <span className="attention-chip__name">{chip.name}</span>
           <span className="attention-chip__fact">{chip.fact}</span>

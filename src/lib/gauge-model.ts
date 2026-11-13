@@ -1,6 +1,6 @@
 import { gaugeSummary } from './activity';
-import { dayOptions } from './day';
-import { folderName, formatTokens } from './format';
+import { dayOptions, localDay } from './day';
+import { folderName, formatTokens, pluralize } from './format';
 import type { Session, Tokens } from './types';
 
 export type WeekTokensState =
@@ -18,7 +18,8 @@ export interface GaugeInput {
 }
 
 export interface GaugeFigure { value: string; label: string }
-export interface WeekRow { day: string; label: string; tokensText: string; widthPct: number; selected: boolean }
+export interface WeekRow { day: string; label: string; tokensText: string; widthPct: number; selected: boolean; isToday: boolean }
+export interface DaySummary { title: string; lines: string[] }
 export interface DaySessionRow { id: string; name: string; tokensText: string; ended: boolean }
 export type WeekPanel =
   | { kind: 'loading'; text: string }
@@ -32,6 +33,7 @@ export interface GaugeModel {
   daySessionsTitle: string;
   daySessions: DaySessionRow[];
   daySessionsEmptyText: string | null;
+  summary: DaySummary;
 }
 
 export const HELP_TITLE = 'Como ler o mapa';
@@ -48,9 +50,11 @@ function weekPanelOf({ week, viewedDay, now, timeZone }: GaugeInput): WeekPanel 
   return {
     kind: 'ready',
     totalText: formatTokens(week.total.primary),
-    rows: week.days.map(({ day, tokens }) => ({ day, label: labels.get(day) ?? day, tokensText: formatTokens(tokens.primary), widthPct: Math.round((tokens.primary / largest) * 1000) / 10, selected: day === viewedDay })),
+    rows: week.days.map(({ day, tokens }) => ({ day, label: labels.get(day) ?? day, tokensText: formatTokens(tokens.primary), widthPct: Math.round((tokens.primary / largest) * 1000) / 10, selected: day === viewedDay, isToday: day === localDay(now, timeZone) })),
   };
 }
+
+const agentCountOf = (sessions: Session[]) => sessions.reduce((sum, session) => sum + session.agents.length + session.workflows.reduce((inWorkflows, workflow) => inWorkflows + workflow.agents.length, 0), 0);
 
 /** Os três números do mostrador, os 7 dias e a divisão do dia por sessão. */
 export function gaugeModel(input: GaugeInput): GaugeModel {
@@ -63,7 +67,7 @@ export function gaugeModel(input: GaugeInput): GaugeModel {
     .map(({ id, name, primary, ended }): DaySessionRow => ({ id, name, tokensText: formatTokens(primary), ended }));
   return {
     figures: [
-      { value: pastDay ? LIVE_ONLY_PLACEHOLDER : String(summary.activeAgents), label: 'agindo' },
+      { value: pastDay ? LIVE_ONLY_PLACEHOLDER : String(summary.activeAgents), label: 'agindo agora (12 s)' },
       { value: pastDay ? LIVE_ONLY_PLACEHOLDER : String(summary.actionsLastMinute), label: 'ações/min' },
       { value: formatTokens(summary.tokensToday), label: pastDay ? 'tokens neste dia' : 'tokens hoje' },
     ],
@@ -71,5 +75,6 @@ export function gaugeModel(input: GaugeInput): GaugeModel {
     daySessionsTitle: `Por sessão · ${dayLabel}`,
     daySessions,
     daySessionsEmptyText: daySessions.length === 0 ? 'Nenhuma sessão neste dia.' : null,
+    summary: { title: `Resumo · ${dayLabel}`, lines: [pluralize(sessions.length, 'sessão', 'sessões'), pluralize(agentCountOf(sessions), 'agente', 'agentes'), `${formatTokens(summary.tokensToday)} tokens`] },
   };
 }

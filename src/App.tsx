@@ -52,7 +52,7 @@ export function App() {
                   onCollapseAll={actions.collapseAll}
                 />
                 <Gauge model={gauge} openPanel={ui.gauge} onTogglePanel={actions.toggleGauge} onSelectDay={actions.selectDay} />
-                {view.isPanelShown && <DetailPanel model={detail} mode={view.layoutMode.panel} onClose={actions.closeDetail} onToggleTask={actions.toggleTask} onSelectChild={actions.selectWithReveal} />}
+                {view.isPanelShown && <DetailPanel model={detail} mode={view.layoutMode.panel} onClose={actions.closeDetail} onToggleTask={actions.toggleTask} onSelectChild={actions.selectWithReveal} emptySummary={gauge.summary} />}
               </>
             ) : <ScreenMessage state={screen} onRetry={dashboard.retry} onSignIn={dashboard.signIn} />}
           </div>

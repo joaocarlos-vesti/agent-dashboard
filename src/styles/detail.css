@@ -1,6 +1,8 @@
 .detail-panel { box-sizing: border-box; overflow-y: auto; background: #141416; display: flex; flex-direction: column; border-left: 1px solid var(--line); }
 .detail-panel--fixed { flex: none; width: 360px; }
 .detail-panel--overlay { position: absolute; top: 0; right: 0; bottom: 0; z-index: 5; width: min(400px, 100%); box-shadow: -16px 0 40px rgba(0, 0, 0, 0.5); }
+.detail-summary { display: flex; flex-direction: column; gap: 4px; padding: 0 16px; font-size: 13px; color: var(--muted); }
+.detail-summary__title { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--faint); }
 .detail-panel__empty { padding: 24px 16px; font-size: 13px; color: var(--faint); }
 
 .detail-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 14px; background: rgba(20, 20, 22, 0.94); backdrop-filter: blur(8px); border-bottom: 1px solid #222226; }
@@ -38,6 +40,7 @@
 .rhythm__bar { flex: 1 1 0; min-width: 2px; border-radius: 2px 2px 0 0; background: var(--line-soft); transition: height 300ms ease; }
 .rhythm__bar--active { background: #5e5e66; }
 .rhythm__bar--lit { background: var(--brand); }
+.rhythm__bar--lit.rhythm__bar--latest { background: var(--brand-light); }
 .rhythm-axis { display: flex; justify-content: space-between; margin-top: -4px; font-size: 12px; color: #6f6b66; }
 .recent-actions { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; }
 .recent-action { display: flex; align-items: center; gap: 10px; min-height: 30px; font-size: 13px; color: var(--soft); }

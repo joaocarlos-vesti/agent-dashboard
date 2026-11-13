@@ -11,7 +11,7 @@ function WeekRows({ week, onSelectDay }: { week: GaugeModel['week']; onSelectDay
   return (
     <div className="week-rows">
       {week.rows.map((row) => (
-        <button key={row.day} type="button" className="week-row" aria-pressed={row.selected} onClick={() => onSelectDay(row.day)}>
+        <button key={row.day} type="button" className="week-row" aria-pressed={row.selected} data-today={row.isToday || undefined} onClick={() => onSelectDay(row.day)}>
           <span className="week-row__label">{row.label}</span>
           <span className="meter"><span className="meter__fill" style={{ width: `${row.widthPct}%` }} /></span>
           <span className="week-row__tokens">{row.tokensText}</span>

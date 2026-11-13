@@ -117,6 +117,21 @@ describe('card de agente (T31, T32, T33, T36, T64)', () => {
     expect(cardOf(runningAgent, agentId).callsSummary).toBeNull();
   });
 
+  test('a linha da última ação tem uma chave nova a cada ação (para o brilho recomeçar)', () => {
+    const reading = (minutesAgo: number) => ev(minutesAgo, 'PreToolUse', { agent_id: 'l1', agent_type: 'general-purpose', tool: 'Read', summary: 'a.ts' });
+    const first = cardOf([...runningAgent, reading(0.5)], agentId);
+    const second = cardOf([...runningAgent, reading(0.5), reading(0.2)], agentId);
+    expect(first.actionKey).not.toBeNull();
+    expect(second.actionKey).not.toBe(first.actionKey);
+    expect(cardOf(runningAgent, agentId).actionKey).toBeNull();
+  });
+
+  test('agente que acabou de concluir pulsa em verde por poucos segundos; depois não', () => {
+    const finishedAgo = (seconds: number) => cardOf([sessionStart(30), looseAgentStart(20, 'l1'), { ...looseAgentStop(0, 'l1'), created_at: new Date(NOW - seconds * 1000).toISOString() }, ev(0, 'PreToolUse', { tool: 'Read' })], 's1::agents::logic-reviewer');
+    expect([finishedAgo(2).justFinished, finishedAgo(5).justFinished]).toEqual([true, false]);
+    expect(cardOf(runningAgent, agentId).justFinished).toBe(false);
+  });
+
   test('agente rodando mostra "tokens ao terminar" no lugar do número', () => {
     const card = cardOf(runningAgent, agentId);
     expect([card.tokensText, card.tokensCaption]).toEqual([null, 'tokens ao terminar']);

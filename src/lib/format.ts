@@ -100,3 +100,6 @@ export function describeCallGroup({ callCount, tokens, sessionShare, rejectedCou
     rejectedCount > 0 ? `${rejectedCount} ${rejectedCount === 1 ? 'reprovou' : 'reprovaram'}` : null,
   ].filter(Boolean).join(' · ');
 }
+
+/** Conta com a palavra no singular ou no plural. @example pluralize(1, 'agente', 'agentes') // "1 agente" */
+export const pluralize = (count: number, singular: string, plural: string): string => `${count} ${count === 1 ? singular : plural}`;

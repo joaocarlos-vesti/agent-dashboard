@@ -5,6 +5,7 @@ const SECOND_MS = 1000;
 export const SPARK_STEP_MS = 350;
 export const SPARK_LIFETIME_MS = 3000;
 export const ENTERING_MS = 4 * SECOND_MS;
+export const JUST_FINISHED_MS = 3 * SECOND_MS;
 const ACTIVE_WITHIN_MS = 12 * SECOND_MS;
 const FAST_CLOCK_MS = SECOND_MS;
 const SLOW_CLOCK_MS = 30 * SECOND_MS;
@@ -52,6 +53,13 @@ export function sparksByEdge(liveEvents: LiveEvent[], tree: MapTree, items: Visi
 }
 
 export const pruneLiveEvents = (liveEvents: LiveEvent[], now: number): LiveEvent[] => liveEvents.filter(({ receivedAt }) => now - receivedAt <= SPARK_LIFETIME_MS);
+
+/** Agente que acabou de concluir pulsa em verde uma vez; depois disso o card fica parado. */
+export const isJustFinished = (endedAt: string | null | undefined, now: number): boolean => {
+  if (!endedAt) return false;
+  const age = now - Date.parse(endedAt);
+  return age >= 0 && age <= JUST_FINISHED_MS;
+};
 
 /** Agente que acabou de começar entra deslizando; depois disso o card fica parado. */
 export const isEntering = (startedAt: string | null | undefined, now: number): boolean => {

@@ -22,6 +22,8 @@
 .week-row[aria-pressed='true'] .week-row__label, .week-row__tokens { color: var(--text); }
 .week-row__tokens { font-size: 13px; font-weight: 600; text-align: right; }
 .week-row .meter { height: 6px; border-radius: 3px; }
+.week-row[aria-pressed='true'] .meter__fill { background: var(--past-day); }
+.week-row[data-today] .meter__fill { background: var(--today); }
 
 .day-sessions { display: flex; flex-direction: column; }
 .day-session { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--text); }

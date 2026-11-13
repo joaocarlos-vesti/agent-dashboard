@@ -11,6 +11,24 @@ function sceneOf(events: AgentEvent[], { pastDay = false, uiState = ui } = {}): 
 }
 const activeAgent = (id: string) => evSeconds(3, 'PostToolUse', { agent_id: id, agent_type: 'logic-reviewer', tool: 'Read', summary: 'a.ts' });
 
+describe('sessões de mesmo nome', () => {
+  const twoSessions = (secondExtra: Partial<AgentEvent> = {}) => [
+    sessionStart(60), ev(1, 'PreToolUse', { tool: 'Read' }),
+    sessionStart(30, { session_id: 's2', ...secondExtra }), ev(1, 'PreToolUse', { session_id: 's2', tool: 'Read' }),
+  ];
+
+  test('quando a pasta se repete, cada card diz a branch e a hora em que a sessão começou', () => {
+    const { cards } = sceneOf(twoSessions({ branch: 'feat/carrinho' }));
+    expect([cards.s1?.originNote, cards.s2?.originNote]).toEqual(['main · iniciada 11:00', 'feat/carrinho · iniciada 11:30']);
+  });
+
+  test('sem branch, fica só a hora; pasta única não ganha nota', () => {
+    expect(sceneOf(twoSessions({ branch: null })).cards.s2?.originNote).toBe('iniciada 11:30');
+    expect(sceneOf([sessionStart(60), ev(1, 'PreToolUse', { tool: 'Read' })]).cards.s1?.originNote).toBeNull();
+    expect(sceneOf(twoSessions({ cwd: '/home/joao/outra-loja' })).cards.s2?.originNote).toBeNull();
+  });
+});
+
 describe('cena do mapa', () => {
   test('um card pronto para cada item visível, na ordem do mapa', () => {
     const scene = sceneOf([sessionStart(40), looseAgentStart(20, 'l1'), ev(0, 'PreToolUse', { tool: 'Read' })]);

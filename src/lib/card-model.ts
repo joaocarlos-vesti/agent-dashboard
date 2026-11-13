@@ -1,8 +1,8 @@
 import { clockTime } from './day';
 import { heartbeat } from './activity';
-import { describeCallGroup, folderName, formatRelativeTime, formatTokens } from './format';
+import { describeCallGroup, folderName, formatRelativeTime, formatTokens, pluralize } from './format';
 import type { AgentUnit, TreeNode } from './map-tree';
-import { isEntering } from './motion';
+import { isEntering, isJustFinished } from './motion';
 import { addTokens } from './usage';
 import type { Session } from './types';
 
@@ -29,6 +29,9 @@ export interface CardModel {
   tokensText: string | null;
   tokensCaption: string;
   callsSummary: string | null;
+  actionKey: string | null;
+  justFinished: boolean;
+  originNote: string | null;
   tags: CardTag[];
   marks: string[];
   heartbeat: number[];
@@ -47,6 +50,7 @@ export interface CardContext {
   now: number;
   timeZone: string | undefined;
   open: boolean;
+  distinguishSession?: boolean;
 }
 
 const STATE_PRESENTATION: Record<StateKey, { label: string; icon: IconKey }> = {
@@ -63,7 +67,6 @@ const STATE_PRESENTATION: Record<StateKey, { label: string; icon: IconKey }> = {
 export const statePresentation = (state: StateKey) => STATE_PRESENTATION[state];
 
 const NODE_LABEL = { session: 'Sessão', workflow: 'Workflow', agent: 'Agente' } as const;
-const pluralize = (count: number, singular: string, plural: string) => `${count} ${count === 1 ? singular : plural}`;
 
 function sinceText(instant: string, now: number): string {
   const relative = formatRelativeTime(instant, now);
@@ -104,8 +107,16 @@ function toneOf({ state, lit, tags }: { state: StateKey; lit: boolean; tags: Car
 
 type CardParts = Pick<CardModel, 'title' | 'titleHint' | 'icon' | 'state' | 'stateDetail' | 'actionText' | 'tokensText' | 'tokensCaption' | 'tags' | 'marks' | 'lit' | 'probableSameAgent'> & { actionAt: number[]; callsSummary?: string | null };
 
+/** Nome da sessão no mapa: a pasta onde ela roda. */
+export const sessionTitleOf = (session: Session): string => folderName(session.cwd) ?? 'sessão';
+
+// Distingue sessões da mesma pasta: branch e hora em que a sessão começou.
+function originNoteOf(session: Session, timeZone: string | undefined): string {
+  return [session.branch, `iniciada ${clockTime(Date.parse(session.startedAt), timeZone)}`].filter(Boolean).join(' · ');
+}
+
 function sessionParts(session: Session, { now, timeZone }: { now: number; timeZone: string | undefined }): CardParts {
-  const title = folderName(session.cwd) ?? 'sessão';
+  const title = sessionTitleOf(session);
   return {
     title, titleHint: title, icon: 'terminal', state: sessionState(session), stateDetail: sessionDetail(session, now, timeZone),
     actionText: null, tokensText: formatTokens(session.tokens.day.primary), tokensCaption: sessionCaption(session), tags: [],
@@ -154,17 +165,21 @@ const actsByItself = (node: TreeNode) => node.kind === 'agent' || (node.kind ===
 const hasPulseRow = (node: TreeNode) => node.kind === 'agent' || (node.kind === 'session' && node.childIds.length === 0);
 
 /** Tudo que um card do mapa mostra, já em texto; o componente só desenha. */
-export function cardModel(node: TreeNode, { now, timeZone, open }: CardContext): CardModel {
+export function cardModel(node: TreeNode, { now, timeZone, open, distinguishSession = false }: CardContext): CardModel {
   const parts = node.kind === 'session'
     ? sessionParts(node.session, { now, timeZone })
     : node.kind === 'workflow' ? workflowParts(node) : agentParts(node.unit, now);
   const { actionAt, ...shown } = parts;
   const presentation = statePresentation(shown.state);
   const pulse = heartbeat(actionAt, now);
+  const originNote = node.kind === 'session' && distinguishSession ? originNoteOf(node.session, timeZone) : null;
   const tokensSpoken = shown.tokensText ? `, ${shown.tokensText} tokens` : '';
   return {
     ...shown,
     callsSummary: shown.callsSummary ?? null,
+    actionKey: node.kind === 'agent' && shown.actionText ? node.unit.lastActionAt : null,
+    justFinished: node.kind === 'agent' && node.unit.status === 'done' && isJustFinished(node.unit.endedAt, now),
+    originNote,
     id: node.id,
     kind: node.kind,
     stateLabel: presentation.label,
@@ -176,6 +191,6 @@ export function cardModel(node: TreeNode, { now, timeZone, open }: CardContext):
     ringing: shown.lit && actsByItself(node),
     entering: node.kind === 'agent' && isEntering(node.unit.startedAt, now),
     tone: toneOf({ state: shown.state, lit: shown.lit, tags: shown.tags }),
-    ariaLabel: `${NODE_LABEL[node.kind]} ${shown.title}, ${presentation.label}${tokensSpoken}`,
+    ariaLabel: `${NODE_LABEL[node.kind]} ${shown.title}${originNote ? ` (${originNote})` : ''}, ${presentation.label}${tokensSpoken}`,
   };
 }

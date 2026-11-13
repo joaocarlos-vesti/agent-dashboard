@@ -35,8 +35,9 @@ describe('seletor de dia (T17)', () => {
     expect(days.filter((day) => day.pressed)).toHaveLength(1);
   });
 
-  test('cada dia tem a data por extenso na dica', () => {
-    expect(headerOf().days[1]?.title).toBe('quarta-feira, 11 de novembro');
+  test('cada dia tem a data por extenso na dica; hoje e ontem dizem a palavra antes', () => {
+    const { days } = headerOf();
+    expect(days.slice(0, 3).map((day) => day.title)).toEqual(['Hoje, quinta-feira, 12 de novembro', 'Ontem, quarta-feira, 11 de novembro', 'terça-feira, 10 de novembro']);
   });
 });
 

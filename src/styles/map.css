@@ -3,6 +3,8 @@
 .map-canvas { position: relative; flex: 1 1 0; min-height: 0; background: var(--bg-map); }
 .map-canvas .react-flow { --xy-background-color: var(--bg-map); background: var(--bg-map); }
 .map-canvas--frozen .map-card { cursor: pointer; }
+/* O React Flow desliga o ponteiro dos nós sem arraste, seleção ou clique, e o faz por estilo inline; os cards são clicáveis por dentro. */
+.map-canvas .react-flow__node { pointer-events: all !important; }
 .map-toolbar__button { min-height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-map); color: var(--muted); font-size: 12px; }
 
 .map-node { width: 100%; }
@@ -42,6 +44,8 @@
 .map-card--yourTurn { background: #1b1b1f; border-color: #6a6a73; box-shadow: 0 0 0 1px rgba(237, 235, 230, 0.06), 0 8px 24px rgba(0, 0, 0, 0.35); }
 .map-card--yourTurnOld, .map-card--ended { background: #141417; border-color: var(--line); color: var(--muted); }
 .map-card--stale { border-style: dashed; border-color: var(--faint); }
+.map-card--finished { animation: card-finished 1600ms ease-out; }
+@keyframes card-finished { 0% { box-shadow: 0 0 0 0 rgba(111, 211, 184, 0.7); } 100% { box-shadow: 0 0 0 14px rgba(111, 211, 184, 0); } }
 .map-card--selected { outline: 2px solid var(--text); outline-offset: 2px; }
 
 .map-card__body { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -52,17 +56,21 @@
 .map-card__toggle:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
 .map-card__toggle svg { font-size: 9px; }
 .map-card__select:has(+ .map-card__toggle) .map-card__head { padding-right: 44px; }
-.map-card__state { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; white-space: nowrap; color: var(--text); }
+.map-card__origin { font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-card__state { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; min-width: 0; font-size: 13px; color: var(--text); }
 .map-card__state svg { flex: none; font-size: 12px; }
 .map-card__state-word { flex: none; font-weight: 500; }
-.map-card__state-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+.map-card__state-detail { min-width: 0; color: var(--faint); }
 .map-card__state--running svg { color: var(--blue); }
 .map-card__state--done, .map-card__state--done .map-card__state-word { color: var(--muted); }
 .map-card__state--done svg { color: var(--teal); }
-.map-card__state--waiting, .map-card__state--waiting .map-card__state-detail { color: var(--amber); }
+.map-card__state--waiting { color: var(--amber); }
+.map-card__state--waiting .map-card__state-detail { color: var(--amber-light); }
 .map-card__state--stale, .map-card__state--ended, .map-card__state--your_turn_old { color: var(--muted); }
 .map-card__state--ended svg, .map-card__state--your_turn_old svg { color: var(--faint); }
 .map-card__action { align-self: flex-start; max-width: 100%; margin-left: -4px; padding: 0 4px; border-radius: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-card__action--fresh { animation: action-glow 1600ms ease-out; }
+@keyframes action-glow { from { background: rgba(217, 119, 87, 0.32); } to { background: transparent; } }
 .map-card__tokens { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-card__calls { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-card__tokens strong { color: var(--soft); font-weight: 600; }

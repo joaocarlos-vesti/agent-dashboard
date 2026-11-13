@@ -1,4 +1,5 @@
 import { NOTHING_SELECTED_TEXT, type DetailModel } from '../../lib/detail-model';
+import type { DaySummary } from '../../lib/gauge-model';
 import type { PanelMode } from '../../lib/layout-mode';
 import { Icon } from '../Icon';
 import { ActivitySection } from './ActivitySection';
@@ -15,6 +16,7 @@ interface DetailPanelProps {
   onClose: () => void;
   onToggleTask: () => void;
   onSelectChild: (id: string) => void;
+  emptySummary: DaySummary;
 }
 
 function DetailHeader({ model, onClose }: { model: DetailModel; onClose: () => void }) {
@@ -36,9 +38,10 @@ function DetailHeader({ model, onClose }: { model: DetailModel; onClose: () => v
 }
 
 /** Painel de detalhe na ordem das perguntas: o que pede de você, agora, resultado, custo e, por último, a tarefa. */
-export function DetailPanel({ model, mode, onClose, onToggleTask, onSelectChild }: DetailPanelProps) {
+export function DetailPanel({ model, mode, onClose, onToggleTask, onSelectChild, emptySummary }: DetailPanelProps) {
   if (!model) {
-    return <aside className={`detail-panel detail-panel--${mode}`} aria-label="Detalhe"><p className="detail-panel__empty">{NOTHING_SELECTED_TEXT}</p></aside>;
+    return <aside className={`detail-panel detail-panel--${mode}`} aria-label="Detalhe"><p className="detail-panel__empty">{NOTHING_SELECTED_TEXT}</p>
+      <div className="detail-summary"><span className="detail-summary__title">{emptySummary.title}</span>{emptySummary.lines.map((line) => <span key={line} className="detail-summary__line">{line}</span>)}</div></aside>;
   }
   return (
     <aside className={`detail-panel detail-panel--${mode}`} aria-label="Detalhe">

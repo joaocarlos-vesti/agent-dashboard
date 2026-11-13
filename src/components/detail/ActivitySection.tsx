@@ -2,6 +2,7 @@ import type { ActivityBlock } from '../../lib/detail-model';
 
 const BAR_MIN_HEIGHT = 2;
 const BAR_MAX_HEIGHT = 32;
+const LATEST_COLUMNS = 2;
 const heightOf = (count: number) => (count === 0 ? BAR_MIN_HEIGHT : Math.min(BAR_MAX_HEIGHT, 4 + count * 3));
 
 export function ActivitySection({ activity, lit }: { activity: ActivityBlock; lit: boolean }) {
@@ -13,7 +14,7 @@ export function ActivitySection({ activity, lit }: { activity: ActivityBlock; li
       </div>
       <div className="rhythm" title="ritmo de ações" aria-hidden="true">
         {activity.bars.map((count, index) => (
-          <span key={index} className={`rhythm__bar${count > 0 ? (lit ? ' rhythm__bar--lit' : ' rhythm__bar--active') : ''}`} style={{ height: heightOf(count) }} />
+          <span key={index} className={`rhythm__bar${count > 0 ? (lit ? ' rhythm__bar--lit' : ' rhythm__bar--active') : ''}${lit && count > 0 && index >= activity.bars.length - LATEST_COLUMNS ? ' rhythm__bar--latest' : ''}`} style={{ height: heightOf(count) }} />
         ))}
       </div>
       <div className="rhythm-axis">{activity.legend ? <span>{activity.legend}</span> : <><span>{activity.startLabel}</span><span>{activity.endLabel}</span></>}</div>

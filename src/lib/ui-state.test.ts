@@ -28,6 +28,19 @@ describe('Como ler (R78)', () => {
   });
 });
 
+describe('clique no corpo do card', () => {
+  test('seleciona e abre os filhos; clicar de novo no card aberto não fecha', () => {
+    const opened = run(start(), { type: 'select', id: 's1', openChildren: true });
+    expect([opened.selectedId, opened.panelOpen, opened.nodeOpen.s1]).toEqual(['s1', true, true]);
+    expect(run(opened, { type: 'select', id: 's1', openChildren: true }).nodeOpen.s1).toBe(true);
+  });
+
+  test('sem pedir para abrir, só seleciona e deixa o estado dos filhos como está', () => {
+    const collapsed = run(start(), { type: 'setNodeOpen', id: 's1', open: false }, { type: 'select', id: 's1' });
+    expect([collapsed.selectedId, collapsed.nodeOpen.s1]).toEqual(['s1', false]);
+  });
+});
+
 describe('dia escolhido (R79)', () => {
   test('escolher dia passado congela; hoje volta ao vivo', () => {
     const past = run(start(), { type: 'selectDay', day: YESTERDAY });

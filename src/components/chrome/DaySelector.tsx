@@ -9,7 +9,7 @@ export function DaySelector({ days, onSelectDay }: DaySelectorProps) {
   return (
     <nav className="day-selector" aria-label="Dia">
       {days.map((dayButton) => (
-        <button key={dayButton.day} type="button" className="day-selector__button" aria-pressed={dayButton.pressed} title={dayButton.title} onClick={() => onSelectDay(dayButton.day)}>
+        <button key={dayButton.day} type="button" className="day-selector__button" aria-pressed={dayButton.pressed} title={dayButton.title} aria-label={dayButton.title} onClick={() => onSelectDay(dayButton.day)}>
           {dayButton.label}
         </button>
       ))}

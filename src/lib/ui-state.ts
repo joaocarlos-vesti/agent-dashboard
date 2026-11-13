@@ -28,7 +28,7 @@ export type UiAction =
   | { type: 'backToLive' }
   | { type: 'goToWaiting'; sessionId: string; reveal?: RevealPath }
   | { type: 'setToday'; today: string }
-  | { type: 'select'; id: string; reveal?: RevealPath; focus?: boolean }
+  | { type: 'select'; id: string; reveal?: RevealPath; focus?: boolean; openChildren?: boolean }
   | { type: 'close' }
   | { type: 'openGauge'; panel: 'tokens' | 'help' }
   | { type: 'closeGauge' }
@@ -69,10 +69,11 @@ function reveal(state: UiState, path: RevealPath | undefined): UiState {
   };
 }
 
-function select(state: UiState, id: string, path: RevealPath | undefined, focus: boolean): UiState {
+function select(state: UiState, id: string, path: RevealPath | undefined, focus: boolean, openChildren = false): UiState {
   const revealed = reveal(state, path);
   return {
     ...revealed,
+    nodeOpen: openChildren ? { ...revealed.nodeOpen, [id]: true } : revealed.nodeOpen,
     selectedId: id,
     panelOpen: true,
     taskExpanded: state.selectedId === id ? state.taskExpanded : false,
@@ -93,7 +94,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       return { ...state, today: action.today, day: followsToday ? action.today : state.day, live: followsToday };
     }
     case 'select':
-      return select(state, action.id, action.reveal, action.focus ?? false);
+      return select(state, action.id, action.reveal, action.focus ?? false, action.openChildren);
     case 'close':
       return { ...state, ...withoutSelection };
     case 'openGauge':
