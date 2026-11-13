@@ -415,3 +415,6 @@ Seguem supostos: formato real do `Notification`; identificador da sessão na nuv
 - **R21/R57:** a semana real vem do SQL `week_tokens_of`; a prova é o teste manual `supabase/tests/003_week_tokens.sql`, que passou no Supabase em 12/11. Não há cópia em JS.
 - **R72:** depois de `/clear` ou compactação, os tokens até o primeiro Stop novo não entram em nenhum dia (a base recomeça no valor novo). Mantido por decisão do condutor.
 - **R1:** `agent_needs_input` conta como "aguardando" e entra no título da aba. Mantido por decisão do condutor.
+
+- 13/11: **F4 aprovada** (`5c60f85`, `fecd487`, `daa0e8b`). **Boas práticas aprovada** (`69b682f`, `2d6f6ca`). **Verificador de critérios:** 122/133 provadas; frouxas reforçadas em `271dede`/`b84d1cc`; nuvem fora da UI (sem dado). 407 testes. Migrations 003, 004 e 005 rodadas pelo dono.
+- Próximo: publicar (com OK do dono) e validação visual pelo dono no site; depois push/merge da branch na main só com OK.
