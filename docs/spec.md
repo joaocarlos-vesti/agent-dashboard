@@ -404,5 +404,6 @@ Seguem supostos: formato real do `Notification`; identificador da sessão na nuv
 - **F2 aprovada** em 2 rodadas: `b9f540a` consultas/hook/migration 003; `543ec02` sessões abertas e evento ao vivo de sessão desconhecida + PermissionRequest como fonte de "aguardando"; `6507a4a` menores. 187 testes.
 - Pendente com o dono: rodar `003_v2_2.sql` e `tests/003_week_tokens.sql`; conferir `max-rows` = 1000 no Supabase.
 - **F3 aprovada** em 3 rodadas: `f699402` telas; `d03e671` Conectar sem gerar chave, carga sem depender do canal, origem no hook; `7e76d5c` Conectado só com evento após a chave. 373 testes.
-- Pendente com o dono: rodar `005_estado_da_conexao.sql` (o Chrome não conectou).
-- F4 em andamento (movimento, larguras, M1/M2 da F3); o agente parou no limite de uso de 5 h e retoma depois das 23:50 (Fortaleza).
+- `005_estado_da_conexao.sql` rodado pelo dono.
+- **F4 aprovada** em 2 rodadas: `5c60f85` movimento/larguras/aba; `fecd487` faísca em CSS numa camada própria; `daa0e8b` timers e memoização. 394 testes. Revisão r2 aprovada no chat (gravação do arquivo negada pelo sistema). Menor aberto: buildBoard ~53 ms/s em dia pesado pode engasgar a faísca.
+- Próximo: fechamento (boas práticas, critérios, navegador, publicação com OK).
