@@ -312,7 +312,7 @@ Componentes como funções que devolvem HTML a partir de dados prontos (sem `fet
 | T27 | Card de sessão | cada um dos 6 estados | Palavra + ícone; âmbar só em "aguardando você" | Estados | F3 |
 | T28 | Card de sessão | sua vez recente / antiga | "terminou há 3 min" com destaque leve / "sua vez desde 11:20" em cinza | Estados | F3 |
 | T29 | Card de sessão | começou ontem / continua hoje / retomada | "← começou ontem às 22:40" / "continua hoje →" / "retomada às 09:12" | Dias | F3 |
-| T30 | Card de sessão | nuvem | Ícone de nuvem (vem do protótipo; **pergunta**: a spec não define a marca de nuvem) | Respostas do dono 3 | F3 |
+| T30 | Card de sessão | nuvem | **Suspenso (A confirmar):** sem dado que identifique a sessão na nuvem, o card mostra sempre o ícone de terminal. Ícone de nuvem volta quando houver o dado | Respostas do dono 3 | F3 |
 | T31 | Card de agente | rodando com ferramenta longa | "rodando há 6 min · rodou npm test" | Estados | F3 |
 | T32 | Card de agente | sem nova ação | "sem nova ação há 14 min", destaque leve, não sobe | Estados | F3 |
 | T33 | Card de agente | REPROVADO | Etiqueta violeta "REPROVADO" | Estados | F3 |
@@ -325,7 +325,7 @@ Componentes como funções que devolvem HTML a partir de dados prontos (sem `fet
 | T40 | Faísca | `PostToolUse` novo | Faísca terracota até o agente; ao concluir, faísca verde volta ao pai | Movimento | navegador |
 | T41 | Agente novo | `SubagentStart` | Entra deslizando, sem mover os outros | Movimento; ordem fixa | navegador |
 | T42 | Painel de detalhe | nada selecionado | "Clique numa sessão ou num agente para ver o detalhe." (**pergunta**) | Painel | F3 |
-| T43 | Painel de detalhe | aguardando permissão | 1º bloco: "Responda no terminal: {pasta} · {branch}"; na nuvem, "Abrir a sessão" | Painel 1 | F3 |
+| T43 | Painel de detalhe | aguardando permissão | 1º bloco: "Responda no terminal: {pasta} · {branch}"; na nuvem, "Abrir a sessão" **suspenso (A confirmar):** o botão só volta com o identificador da sessão na nuvem | Painel 1 | F3 |
 | T44 | Painel de detalhe | sem branch (dado não veio) | Só a pasta, sem rótulo vazio | Painel 1 | F3 |
 | T45 | Painel de detalhe | Agora | Ritmo de 40 colunas + últimas ações com "há X" | Painel 2 | F3 |
 | T46 | Painel de detalhe | sessão encerrada | Ritmo do início ao fim, legenda "sessão inteira (10:00–10:40)" | Painel 2 | F3 |
@@ -336,7 +336,7 @@ Componentes como funções que devolvem HTML a partir de dados prontos (sem `fet
 | T51 | Painel de detalhe | tarefa | 3 linhas + "ler a tarefa inteira" | Painel 5 | F3 |
 | T52 | Painel de detalhe | sessão/workflow | Filhos como barras clicáveis | Painel | F3 |
 | T53 | Painel de detalhe | sessão de vários dias | "hoje: X · sessão inteira: Y" | Dias | F3 |
-| T54 | Painel de detalhe | início com mais de 7 dias | "O início desta sessão tem mais de 7 dias e não está mais guardado." | Dias | F3 |
+| T54 | Painel de detalhe | início com mais de 7 dias | "O início desta sessão não foi guardado (hook instalado depois do começo, sessão retomada ou início com mais de 7 dias)." (texto ampliado com o R26) | Dias | F3 |
 | T55 | Painel de detalhe | rolar | Cabeçalho fixo | Painel | navegador |
 | T56 | Painel de detalhe | meia tela/celular (< 1100 px) | Abre por cima, fecha com botão (Esc: **pergunta**) | Larguras | navegador |
 | T57 | Aba do navegador | aguardando / sua vez recente / nada | "(2) Painel de agentes" / ícone com ponto / título limpo | Estados; Respostas 5 | F4 |
@@ -408,3 +408,10 @@ Seguem supostos: formato real do `Notification`; identificador da sessão na nuv
 - **F4 aprovada** em 2 rodadas: `5c60f85` movimento/larguras/aba; `fecd487` faísca em CSS numa camada própria; `daa0e8b` timers e memoização. 394 testes. Revisão r2 aprovada no chat (gravação do arquivo negada pelo sistema). Menor aberto: buildBoard ~53 ms/s em dia pesado pode engasgar a faísca.
 - Fechamento: boas práticas aprovadas na r2 (`69b682f`, `2d6f6ca`, `bffe877`); verificador de critérios: 33/38 fortes, os 4 fracos e a divergência R37 corrigidos. 404 testes.
 - **Esperando validação manual** do dono em http://localhost:5173 (Chrome da extensão não conectou). Publicação só com OK.
+
+## Limitações conhecidas e decisões de fechamento (12/11/2026)
+
+- **Nuvem (T30/T43):** não há dado que identifique a sessão na nuvem; a marca de nuvem e o botão "Abrir a sessão" saíram da tela. Voltam quando o identificador for confirmado (item "A confirmar").
+- **R21/R57:** a semana real vem do SQL `week_tokens_of`; a prova é o teste manual `supabase/tests/003_week_tokens.sql`, que passou no Supabase em 12/11. Não há cópia em JS.
+- **R72:** depois de `/clear` ou compactação, os tokens até o primeiro Stop novo não entram em nenhum dia (a base recomeça no valor novo). Mantido por decisão do condutor.
+- **R1:** `agent_needs_input` conta como "aguardando" e entra no título da aba. Mantido por decisão do condutor.

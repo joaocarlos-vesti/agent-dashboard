@@ -67,3 +67,19 @@ Verificações: `npm test` 394 verdes, `npx tsc --noEmit` limpo, `npx vite build
 |---|---|
 | MENOR 1: timer de limpeza das faíscas não cancelado ao desmontar | `useLiveSparks` guarda os timers e cancela todos ao desmontar (correção feita fora de mim; revisada e mantida). |
 | MENOR 2: painel recalculado a cada segundo | `header`, `gauge` e `detail` agora em `useMemo` (antes recalculavam em qualquer renderização, inclusive a das faíscas); `liveClockMs` lê os eventos do fim para o começo e para no primeiro antigo (antes varria o dia inteiro a cada batida). Medido com um dia pesado (12 sessões, 4.812 eventos): `buildBoard` 53 ms, `buildMapScene` 1,4 ms, faixa 1,3 ms, mostrador 2,5 ms por batida. O relógio só bate a cada 1 s enquanto há ação nos últimos 13 s; parado, a cada 30 s. O custo que sobra é o `buildBoard` (depende do relógio: brilho, "sem sinal", "sua vez" recente); deixar incremental por sessão fica como melhoria futura, sem necessidade com dias menores. |
+
+## Reforço dos critérios (verificador, criterios-r1)
+
+| Achado | O que foi feito |
+|---|---|
+| R42 | Teste: sessão aberta e sem sinal de ontem, e "sua vez" recente na virada do dia, ficam fora da faixa. |
+| T58 | Primeira conexão (sem chave anterior) mostra "Rode o comando abaixo para conectar o Claude Code."; "A conexão anterior foi desligada" só quando havia chave. |
+| R73/T10 | Teste: dia passado com o painel conectado não acende sessão nem agente (com o controle ao vivo acendendo). Faíscas: o corte de dia passado e movimento reduzido saiu do hook para `sparksShown`, testada. |
+| T46 | Legenda do painel de sessão encerrada vira "sessão inteira (10:00–10:40)" (campo `legend`); o total fica "N ações na sessão". |
+| T54 | Teste exato do texto; a spec foi alinhada ao texto ampliado pelo R26. |
+| T59 | Teste do caminho ao vivo: evento mesclado sobe tokens do agente, da sessão e do dia. |
+| R21/R57 | Prova é o teste SQL manual `003_week_tokens.sql`, que passou no Supabase em 12/11; sem cópia em JS. |
+| T30/T43 | Marca de nuvem e botão "Abrir a sessão" removidos da UI (sem dado que identifique a sessão); o caminho do painel passou de "Sessão local" para "Sessão", pois não dá para afirmar que é local. Registrado na spec como A confirmar. |
+| R72, R1 | Mantidos; registrados na spec. |
+
+Os commits `2d6f6ca`, `bffe877` e `69b682f` são de instância minha; `e883f25` (andamento do fechamento) não é meu.
