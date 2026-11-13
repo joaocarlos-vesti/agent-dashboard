@@ -55,8 +55,13 @@ export const isEntering = (startedAt: string | null | undefined, now: number): b
   return age >= 0 && age <= ENTERING_MS;
 };
 
-/** Bate a cada segundo enquanto alguma ação ainda pode estar acesa (12 s) ou acabou de apagar; parado, a cada 30 s. */
+/** Bate a cada segundo enquanto alguma ação ainda pode estar acesa (12 s) ou acabou de apagar; parado, a cada 30 s. Os eventos vêm em ordem de horário, então a busca começa pelo fim e para no primeiro antigo. */
 export function liveClockMs(events: AgentEvent[], now: number): number {
-  const hasRecentAction = events.some((event) => event.event === 'PostToolUse' && now - Date.parse(event.created_at) <= ACTIVE_WITHIN_MS + SECOND_MS);
-  return hasRecentAction ? FAST_CLOCK_MS : SLOW_CLOCK_MS;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (!event) continue;
+    if (now - Date.parse(event.created_at) > ACTIVE_WITHIN_MS + SECOND_MS) break;
+    if (event.event === 'PostToolUse') return FAST_CLOCK_MS;
+  }
+  return SLOW_CLOCK_MS;
 }

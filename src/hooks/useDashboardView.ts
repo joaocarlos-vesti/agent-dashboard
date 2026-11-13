@@ -48,14 +48,20 @@ export function useDashboardView() {
 
   const todayTree = useMemo(() => buildMapTree(todayBoard, { pastDay: false }), [todayBoard]);
   const todayWaiting = useMemo(() => attentionItems(todayBoard, now).filter((item) => item.kind === 'waiting'), [todayBoard, now]);
-  const header = headerModel({ now, lastUpdateAt, timeZone: BROWSER_TIME_ZONE, viewedDay: ui.day, pastDay, todayWaiting, todayTree });
+  const header = useMemo(
+    () => headerModel({ now, lastUpdateAt, timeZone: BROWSER_TIME_ZONE, viewedDay: ui.day, pastDay, todayWaiting, todayTree }),
+    [now, lastUpdateAt, ui.day, pastDay, todayWaiting, todayTree],
+  );
   const strip = useMemo(() => stripModel({ items: attentionItems(board, shownNow), tree: scene.tree, now: shownNow, timeZone: BROWSER_TIME_ZONE, pastDay }), [board, scene.tree, shownNow, pastDay]);
 
   const week = useWeekTokens({ isOpen: ui.gauge === 'tokens', timeZone: BROWSER_TIME_ZONE });
-  const gauge = gaugeModel({ sessions: allSessionsOf(board), now: shownNow, pastDay, viewedDay: ui.day, timeZone: BROWSER_TIME_ZONE, week });
+  const gauge = useMemo(() => gaugeModel({ sessions: allSessionsOf(board), now: shownNow, pastDay, viewedDay: ui.day, timeZone: BROWSER_TIME_ZONE, week }), [board, shownNow, pastDay, ui.day, week]);
 
   const selectedNode = ui.selectedId ? scene.tree.nodes[ui.selectedId] : undefined;
-  const detail = selectedNode ? detailModel(selectedNode, { now: shownNow, timeZone: BROWSER_TIME_ZONE, events, tree: scene.tree, pastDay, taskExpanded: ui.taskExpanded }) : null;
+  const detail = useMemo(
+    () => (selectedNode ? detailModel(selectedNode, { now: shownNow, timeZone: BROWSER_TIME_ZONE, events, tree: scene.tree, pastDay, taskExpanded: ui.taskExpanded }) : null),
+    [selectedNode, shownNow, events, scene.tree, pastDay, ui.taskExpanded],
+  );
   const screen = screenState({ access: dashboard.access, isLoadingDay: dashboard.isLoadingDay, historyError: dashboard.historyError, hasSessions: scene.hasSessions, pastDay });
   const isPanelShown = layoutMode.panel === 'fixed' || ui.panelOpen;
 

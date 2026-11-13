@@ -59,3 +59,10 @@ Alterados: `card-model`, `format`, `header-model`, `connect-flow` (+ testes), `u
 
 Prova no DOM (Chrome sem cabeça, página de teste com Supabase falso, apagada), com as linhas montadas há mais de 4 s: a faísca nova tem `getAnimations()` com `playState: running` e `currentTime` ~30 ms ao nascer, avança 100 ms a cada 100 ms, o círculo se move pela linha (x de 247 a 293 na primeira linha), termina em 1250 ms (900 ms + 350 ms de atraso) e fica no mesmo elemento durante todo o percurso. A faísca verde percorre as linhas de volta (do agente para a sessão). Antes da correção, o elemento era recriado a cada ~1 s e o tempo voltava a ~50 ms.
 Verificações: `npm test` 394 verdes, `npx tsc --noEmit` limpo, `npx vite build` ok.
+
+## Rodada 3 (menores da revisão F4 r1)
+
+| Achado | O que foi feito |
+|---|---|
+| MENOR 1: timer de limpeza das faíscas não cancelado ao desmontar | `useLiveSparks` guarda os timers e cancela todos ao desmontar (correção feita fora de mim; revisada e mantida). |
+| MENOR 2: painel recalculado a cada segundo | `header`, `gauge` e `detail` agora em `useMemo` (antes recalculavam em qualquer renderização, inclusive a das faíscas); `liveClockMs` lê os eventos do fim para o começo e para no primeiro antigo (antes varria o dia inteiro a cada batida). Medido com um dia pesado (12 sessões, 4.812 eventos): `buildBoard` 53 ms, `buildMapScene` 1,4 ms, faixa 1,3 ms, mostrador 2,5 ms por batida. O relógio só bate a cada 1 s enquanto há ação nos últimos 13 s; parado, a cada 30 s. O custo que sobra é o `buildBoard` (depende do relógio: brilho, "sem sinal", "sua vez" recente); deixar incremental por sessão fica como melhoria futura, sem necessidade com dias menores. |
