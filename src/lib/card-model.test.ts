@@ -113,6 +113,17 @@ describe('card de agente (T31, T32, T33, T36, T64)', () => {
     expect([card.title, card.tokensText, card.tokensCaption]).toEqual(['logic-reviewer', '5 mil', 'tokens · 2 chamadas']);
   });
 
+  test('agente agrupado leva a linha resumo: chamadas, total, parte da sessão e reprovações', () => {
+    const rejected = { summary: 'VEREDITO: REPROVADO — sem teste' };
+    const card = cardOf([sessionStart(30), looseAgentStart(20, 'l1'), looseAgentStop(15, 'l1', 'logic-reviewer', rejected), looseAgentStart(12, 'l2'), looseAgentStop(10, 'l2')], 's1::agents::logic-reviewer');
+    expect(card.callsSummary).toBe('2 chamadas · total 5 mil · 100% da sessão · 1 reprovou');
+  });
+
+  test('agente de uma chamada só ou sem tokens ainda não tem linha resumo', () => {
+    expect(cardOf([sessionStart(30), looseAgentStart(20, 'l1'), looseAgentStop(15, 'l1')], 's1::agents::logic-reviewer').callsSummary).toBeNull();
+    expect(cardOf(runningAgent, agentId).callsSummary).toBeNull();
+  });
+
   test('agente rodando mostra "tokens ao terminar" no lugar do número', () => {
     const card = cardOf(runningAgent, agentId);
     expect([card.tokensText, card.tokensCaption]).toEqual([null, 'tokens ao terminar']);

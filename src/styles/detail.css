@@ -32,6 +32,7 @@
 .detail-section__aside { font-size: 12px; color: var(--faint); }
 .detail-section__aside strong { color: var(--text); font-weight: 600; }
 .detail-section__empty { font-size: 13px; color: var(--faint); }
+.detail-section__summary { margin: 0; font-size: 12px; color: var(--muted); }
 .detail-section__alert { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--violet); }
 
 .rhythm { display: flex; align-items: flex-end; gap: 2px; height: 36px; padding-bottom: 4px; border-bottom: 1px solid var(--line-soft); }

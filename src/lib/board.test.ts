@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { buildBoard, allSessionsOf } from './board';
-import type { AgentEvent, Board, BoardOptions, Session } from './types';
+import { buildBoard, allSessionsOf, tabSessionsOf } from './board';
+import type { AgentEvent, BoardOptions, Session } from './types';
 import { attentionItems } from './attention';
 import { gaugeSummary, lineState } from './activity';
 import { tabIndicator } from './format';
@@ -20,7 +20,6 @@ function firstSession(events: AgentEvent[], now?: number, options?: BoardOptions
   if (!session) throw new Error('nenhuma sessão no board');
   return session;
 }
-const mapSessionsOf = (board: Board) => board.flatMap((person) => person.sessions);
 
 test('sessão com evento recente e sem Stop está rodando', () => {
   assert.equal(firstSession([ev(1, 'SessionStart'), ev(0, 'PreToolUse', { tool: 'Bash' })]).status, 'running');
@@ -136,6 +135,11 @@ test('aguardando há 2 h vira sua vez', () => {
 test('sua vez recente tem destaque', () => {
   const session = firstSession([ev(30, 'SessionStart'), ev(29, 'Stop')]);
   assert.deepEqual([session.status, session.recent, session.sinceLabel], ['your_turn', true, 'terminou há 29 min']);
+});
+
+test('sua vez há exatamente 30 min ainda é recente; com 1 s a mais deixa de ser', () => {
+  assert.equal(firstSession([ev(60, 'SessionStart'), ev(30, 'Stop')]).recent, true);
+  assert.equal(firstSession([evSecondsAgo(3600, 'SessionStart'), evSecondsAgo(1801, 'Stop')]).recent, false);
 });
 
 test('sua vez antiga perde o destaque', () => {
@@ -409,6 +413,17 @@ test('na vista de ontem o dia é ontem', () => {
   assert.equal(session.tokens.day.primary, 100000);
 });
 
+test('queda do acumulado na virada do dia não gera tokens negativos e a base recomeça', () => {
+  const [session] = allSessionsOf(sp([
+    evAt('2026-11-11T20:00:00-03:00', 'SessionStart'),
+    evAt('2026-11-11T23:00:00-03:00', 'Stop', tokens(150000, 10000)),
+    evAt('2026-11-12T08:00:00-03:00', 'Stop', tokens(18000, 2000)),
+    evAt('2026-11-12T09:00:00-03:00', 'Stop', tokens(30000, 5000)),
+  ]));
+  assert.deepEqual(tokensOfDay(session), { '2026-11-11': 160000, '2026-11-12': 15000 });
+  assert.equal(session.tokens.day.primary, 15000);
+});
+
 test('tokens do agente entram no dia do término', () => {
   const [session] = allSessionsOf(sp([
     evAt('2026-11-11T23:00:00-03:00', 'SessionStart'),
@@ -548,18 +563,33 @@ test('com o painel desconectado o agora é a última atualização', () => {
 test('sessão parada de ontem não conta na aba', () => {
   const now = Date.parse('2026-11-12T09:00:00-03:00');
   const board = sp([evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:50:00-03:00', 'Stop')], now);
-  assert.deepEqual(tabIndicator(mapSessionsOf(board)), { title: 'Painel de agentes', dot: false });
+  assert.deepEqual(tabIndicator(tabSessionsOf(board)), { title: 'Painel de agentes', dot: false });
 });
 
 test('sua vez recente de antes da meia-noite fica fora do ponto da aba', () => {
-  const board = sp([evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:50:00-03:00', 'Stop')], Date.parse('2026-11-12T00:10:00-03:00'));
-  assert.deepEqual([board[0].openIdle.length, tabIndicator(mapSessionsOf(board)).dot], [1, false]);
+  const yesterdayStop = [evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:50:00-03:00', 'Stop')];
+  const board = sp(yesterdayStop, Date.parse('2026-11-12T00:10:00-03:00'));
+  assert.deepEqual([board[0].openIdle.length, tabIndicator(tabSessionsOf(board)).dot], [1, false]);
+  const withTodayStop = sp([...yesterdayStop, evAt('2026-11-12T00:05:00-03:00', 'SessionStart', { session_id: 's2' }), evAt('2026-11-12T00:06:00-03:00', 'Stop', { session_id: 's2' })], Date.parse('2026-11-12T00:10:00-03:00'));
+  assert.equal(tabIndicator(tabSessionsOf(withTodayStop)).dot, true);
 });
 
 test('pedido de permissão de ontem ainda conta até virar sua vez', () => {
   const events = [evAt('2026-11-11T22:00:00-03:00', 'SessionStart'), evAt('2026-11-11T23:50:00-03:00', 'Notification', { summary: 'permission_prompt: x' })];
   const board = sp(events, Date.parse('2026-11-12T00:30:00-03:00'));
-  assert.equal(tabIndicator(mapSessionsOf(board)).title, '(1) Painel de agentes');
+  assert.equal(tabIndicator(tabSessionsOf(board)).title, '(1) Painel de agentes');
+});
+
+test('pedido de permissão pendente continua aguardando mesmo com idle_prompt depois', () => {
+  const session = firstSession([ev(20, 'SessionStart'), ev(10, 'PreToolUse', { tool: 'Bash' }), ev(8, 'Notification', { summary: 'permission_prompt: x' }), ev(2, 'Notification', { summary: 'idle_prompt: waiting' })]);
+  assert.deepEqual([session.status, session.statusSince], ['waiting', at(8)]);
+});
+
+test('pedido de permissão que expira vira "sua vez desde" a hora do pedido', () => {
+  const events = [evAt('2026-11-12T09:00:00Z', 'SessionStart'), evAt('2026-11-12T10:00:00Z', 'Notification', { summary: 'permission_prompt: x' })];
+  const session = firstSession(events, Date.parse('2026-11-12T12:01:00Z'));
+  assert.deepEqual([session.status, session.recent, session.sinceLabel], ['your_turn', false, 'sua vez desde 10:00']);
+  assert.equal(firstSession(events, Date.parse('2026-11-12T11:59:00Z')).status, 'waiting');
 });
 
 const twoSessions = (secondEvents: AgentEvent[]) => [

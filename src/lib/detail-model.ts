@@ -1,7 +1,7 @@
 import { endedRhythm, rhythm } from './activity';
 import { cardModel, type IconKey, type StateKey } from './card-model';
 import { clockTime } from './day';
-import { describeAction, describeSessionTokens, exactTime, folderName, formatRelativeTime, formatTokens } from './format';
+import { describeAction, describeCallGroup, describeSessionTokens, exactTime, folderName, formatRelativeTime, formatTokens } from './format';
 import type { AgentUnit, MapTree, TreeNode } from './map-tree';
 import type { AgentEvent, Tokens } from './types';
 import { addTokens } from './usage';
@@ -32,7 +32,7 @@ export interface ActivityBlock {
   emptyText: string | null;
 }
 export interface CallBar { number: number; tokensText: string; widthPct: number; shareText: string; inProgress: boolean; outlier: boolean; outlierText: string | null; rejected: boolean; reason: string | null }
-export interface CallsBlock { items: CallBar[]; medianText: string | null; medianPct: number; rejectedText: string | null; emptyText: string | null }
+export interface CallsBlock { summaryText: string | null; items: CallBar[]; medianText: string | null; medianPct: number; rejectedText: string | null; emptyText: string | null }
 export interface ChildBar { id: string; title: string; icon: IconKey; state: StateKey; stateIcon: IconKey; tokensText: string; widthPct: number; alert: string | null; lit: boolean }
 export interface TokensBlock { primaryText: string | null; unknownText: string | null; sharePct: number | null; shareText: string | null; exactText: string | null; cache: { creation: string; read: string } | null; daySplit: string | null }
 export interface TaskBlock { text: string; canExpand: boolean; expanded: boolean }
@@ -153,7 +153,7 @@ function callsOf(node: TreeNode): CallsBlock | null {
   if (node.kind === 'workflow') return null;
   if (node.kind === 'session') {
     const hasChildren = node.childIds.length > 0;
-    return hasChildren ? null : { items: [], medianText: null, medianPct: 0, rejectedText: null, emptyText: NO_AGENTS_TEXT };
+    return hasChildren ? null : { summaryText: null, items: [], medianText: null, medianPct: 0, rejectedText: null, emptyText: NO_AGENTS_TEXT };
   }
   return callsOfUnit(node.unit);
 }
@@ -179,6 +179,7 @@ function callsOfUnit(unit: AgentUnit): CallsBlock {
   });
   const rejectedNumbers = items.filter((call) => call.rejected).map((call) => `nº ${call.number}`);
   return {
+    summaryText: unit.tokensKnown ? describeCallGroup(unit.summary) : null,
     items,
     medianText: medianPrimary === null ? null : formatTokens(medianPrimary),
     medianPct: medianPrimary === null || largest === 0 ? 0 : percentOf(medianPrimary, largest),

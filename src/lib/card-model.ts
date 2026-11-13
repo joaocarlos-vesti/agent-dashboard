@@ -1,6 +1,6 @@
 import { clockTime } from './day';
 import { heartbeat } from './activity';
-import { folderName, formatRelativeTime, formatTokens } from './format';
+import { describeCallGroup, folderName, formatRelativeTime, formatTokens } from './format';
 import type { AgentUnit, TreeNode } from './map-tree';
 import { isEntering } from './motion';
 import { addTokens } from './usage';
@@ -28,6 +28,7 @@ export interface CardModel {
   actionText: string | null;
   tokensText: string | null;
   tokensCaption: string;
+  callsSummary: string | null;
   tags: CardTag[];
   marks: string[];
   heartbeat: number[];
@@ -102,7 +103,7 @@ function toneOf({ state, lit, tags }: { state: StateKey; lit: boolean; tags: Car
   return byState[state] ?? 'default';
 }
 
-type CardParts = Pick<CardModel, 'title' | 'titleHint' | 'icon' | 'state' | 'stateDetail' | 'actionText' | 'tokensText' | 'tokensCaption' | 'tags' | 'marks' | 'lit' | 'probableSameAgent'> & { actionAt: number[] };
+type CardParts = Pick<CardModel, 'title' | 'titleHint' | 'icon' | 'state' | 'stateDetail' | 'actionText' | 'tokensText' | 'tokensCaption' | 'tags' | 'marks' | 'lit' | 'probableSameAgent'> & { actionAt: number[]; callsSummary?: string | null };
 
 function sessionParts(session: Session, { now, timeZone, isCloud }: { now: number; timeZone: string | undefined; isCloud: boolean }): CardParts {
   const title = folderName(session.cwd) ?? 'sessão';
@@ -142,6 +143,7 @@ function agentParts(unit: AgentUnit, now: number): CardParts {
     title: unit.label, titleHint: unit.task ?? unit.label, icon: 'robot', state, stateDetail: since ? sinceText(since, now) : '',
     actionText: action, tokensText: unit.tokensKnown ? formatTokens(unit.tokens.primary) : null,
     tokensCaption: !unit.tokensKnown ? 'tokens ao terminar' : unit.callCount > 1 ? `tokens · ${unit.callCount} chamadas` : 'tokens',
+    callsSummary: unit.tokensKnown && unit.callCount > 1 ? describeCallGroup(unit.summary) : null,
     tags, marks: [], lit: unit.lit, probableSameAgent: unit.probableSameAgent, actionAt: unit.actionAt,
   };
 }
@@ -163,6 +165,7 @@ export function cardModel(node: TreeNode, { now, timeZone, open, cloudSessionIds
   const tokensSpoken = shown.tokensText ? `, ${shown.tokensText} tokens` : '';
   return {
     ...shown,
+    callsSummary: shown.callsSummary ?? null,
     id: node.id,
     kind: node.kind,
     stateLabel: presentation.label,

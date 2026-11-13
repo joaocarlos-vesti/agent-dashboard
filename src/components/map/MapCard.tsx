@@ -30,6 +30,7 @@ export function MapCard({ card, selected, onActivate, onToggle }: MapCardProps) 
           </span>
           {card.actionText && <span className="map-card__action">{card.actionText}</span>}
           <span className="map-card__tokens">{card.tokensText && <LiveNumber value={card.tokensText} />} {card.tokensCaption}</span>
+          {card.callsSummary && <span className="map-card__calls">{card.callsSummary}</span>}
           {card.marks.length > 0 && <span className="map-card__marks">{card.marks.map((mark) => <span key={mark}>{mark}</span>)}</span>}
           {card.tags.length > 0 && (
             <span className="map-card__tags">

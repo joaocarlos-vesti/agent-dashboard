@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { dayFilter, fetchAllPages, loadDayEvents, loadSessionEvents, mergeEvents, weekTokensFromRows } from './queries';
+import { dayFilter, outsideDayFilter, fetchAllPages, loadDayEvents, loadSessionEvents, mergeEvents, weekTokensFromRows } from './queries';
 import type { EventFilter, EventPage, EventSource, OpenSessions, PageRange, WeekTokensRow } from './queries';
 import type { AgentEvent } from './types';
 
@@ -17,6 +17,13 @@ const pagesOf = (all: AgentEvent[], calls: PageRange[] = []) => async (range: Pa
 
 test('consulta do dia usa os limites locais', () => {
   assert.deepEqual(dayFilter('2026-11-11', SP), { gte: '2026-11-11T03:00:00.000Z', lt: '2026-11-12T03:00:00.000Z' });
+});
+
+test('filtro de "fora do dia" pega o que veio antes ou a partir do fim do dia, com as horas entre aspas', () => {
+  assert.equal(
+    outsideDayFilter({ gte: '2026-11-11T03:00:00.000Z', lt: '2026-11-12T03:00:00.000Z' }),
+    'created_at.lt."2026-11-11T03:00:00.000Z",created_at.gte."2026-11-12T03:00:00.000Z"',
+  );
 });
 
 test('consulta pagina até trazer tudo', async () => {

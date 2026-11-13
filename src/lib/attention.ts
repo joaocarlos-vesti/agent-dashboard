@@ -4,7 +4,8 @@ import type { Agent, AttentionItem, AttentionKind, Board, Session } from './type
 const ALL_CLEAR_TEXT = 'Tudo certo: ninguém esperando você, nada reprovado ou parado.';
 const LOOSE_AGENT_REJECTION_STAYS_MS = 30 * 60 * 1000;
 const KIND_ORDER: AttentionKind[] = ['waiting', 'your_turn', 'rejected', 'silent', 'stale'];
-const SESSION_STATUSES_WITH_REJECTION = new Set(['running', 'waiting', 'your_turn']);
+// Sessão encerrada não cobra mais ação; a sem sinal ainda pode ter reprovação aberta.
+const SESSION_STATUSES_WITH_REJECTION = new Set(['running', 'waiting', 'your_turn', 'stale']);
 
 const agentsOf = (session: Session): Agent[] => [...session.agents, ...session.workflows.flatMap((workflow) => workflow.agents)];
 

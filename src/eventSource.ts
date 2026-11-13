@@ -1,13 +1,13 @@
 import { supabase } from './supabase';
 import type { ConnectionStatus } from './lib/connect-flow';
-import type { EventSource, WeekTokensRow } from './lib/queries';
+import { outsideDayFilter, type EventSource, type WeekTokensRow } from './lib/queries';
 
 // A chamada real ao Supabase: só encaixa os filtros que a lib/queries monta; não tem regra e não é testada.
 export const supabaseEventSource: EventSource = {
   eventsInRange: ({ gte, lt }, { from, to }) =>
     supabase.from('events').select('*').gte('created_at', gte).lt('created_at', lt).order('id').range(from, to).then(({ data, error }) => ({ data, error })),
-  eventsOfSessionsOutside: (sessionIds, { gte, lt }, { from, to }) =>
-    supabase.from('events').select('*').in('session_id', sessionIds).or(`created_at.lt."${gte}",created_at.gte."${lt}"`).order('id').range(from, to)
+  eventsOfSessionsOutside: (sessionIds, outside, { from, to }) =>
+    supabase.from('events').select('*').in('session_id', sessionIds).or(outsideDayFilter(outside)).order('id').range(from, to)
       .then(({ data, error }) => ({ data, error })),
   openSessionIdsBefore: (before) =>
     supabase.rpc('my_open_sessions', { p_before: before }).then(({ data: sessions, error }) => ({ data: sessions ? sessions.map(({ session_id: sessionId }) => sessionId) : null, error })),

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { BROWSER_TIME_ZONE } from '../config';
 import { attentionItems } from '../lib/attention';
-import { allSessionsOf, buildBoard } from '../lib/board';
+import { allSessionsOf, buildBoard, tabSessionsOf } from '../lib/board';
 import { effectiveNow } from '../lib/day';
 import { detailModel } from '../lib/detail-model';
 import { gaugeModel } from '../lib/gauge-model';
@@ -39,7 +39,7 @@ export function useDashboardView() {
   const board = useMemo(() => (pastDay ? buildBoard(events, shownNow, { ...connection, day: ui.day }) : todayBoard), [pastDay, events, shownNow, connection, ui.day, todayBoard]);
   const scene = useMemo(() => buildMapScene({ board, ui, now: shownNow, timeZone: BROWSER_TIME_ZONE, pastDay }), [board, ui, shownNow, pastDay]);
 
-  useTabIndicator(useMemo(() => todayBoard.flatMap((person) => person.sessions), [todayBoard]));
+  useTabIndicator(useMemo(() => tabSessionsOf(todayBoard), [todayBoard]));
   // Dia passado e movimento reduzido ficam sem faíscas; os mesmos dados aparecem em texto.
   const sparks = useMemo(
     () => (pastDay || reducedMotion ? {} : sparksByEdge(liveSparks.liveEvents, scene.tree, scene.items)),

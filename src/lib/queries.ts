@@ -35,6 +35,9 @@ export const dayFilter = (day: string, timeZone: string | undefined): EventFilte
   return { gte: from, lt: to };
 };
 
+/** Expressão `or` do PostgREST para "antes do intervalo ou a partir do fim dele"; as horas vão entre aspas por causa dos `:`. */
+export const outsideDayFilter = ({ gte, lt }: EventFilter): string => `created_at.lt."${gte}",created_at.gte."${lt}"`;
+
 /** Pede página por página até vir uma incompleta; qualquer erro derruba a consulta toda, sem devolver dados pela metade. */
 export async function fetchAllPages(fetchPage: (range: PageRange) => PromiseLike<EventPage>, pageSize = PAGE_SIZE): Promise<AgentEvent[]> {
   const events: AgentEvent[] = [];

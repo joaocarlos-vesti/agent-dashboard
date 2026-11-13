@@ -371,6 +371,9 @@ function buildPerson(login: string, personEvents: AgentEvent[], view: View): Per
 /** Todas as sessões visíveis do board, dos três grupos. */
 export const allSessionsOf = (board: Board): Session[] => board.flatMap((person) => [...person.sessions, ...person.openIdle, ...person.endedToday]);
 
+/** Sessões que contam na aba do navegador: só as do mapa; as paradas de dias anteriores ficam de fora. */
+export const tabSessionsOf = (board: Board): Session[] => board.flatMap((person) => person.sessions);
+
 /**
  * Agrupa eventos em pessoas → sessões → workflows/agentes, com o estado de cada um no dia visto.
  * `options`: fuso, dia visto (AAAA-MM-DD), conexão do painel e hora da última atualização.

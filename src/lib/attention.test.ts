@@ -7,6 +7,7 @@ import { attentionItems, attentionHeadline } from './attention';
 const NOW = Date.parse('2026-11-12T12:00:00Z');
 type EventExtra = Partial<AgentEvent>;
 const at = (minAgo: number) => new Date(NOW - minAgo * 60000).toISOString();
+const secondsAgo = (seconds: number) => new Date(NOW - seconds * 1000).toISOString();
 const ev = (minAgo: number, event: string, extra: EventExtra = {}): AgentEvent => ({ login: 'joao', session_id: 's1', event, created_at: at(minAgo), ...extra });
 const boardOf = (events: AgentEvent[], now = NOW) => buildBoard(events, now, { timeZone: 'UTC' });
 const itemsOf = (events: AgentEvent[]) => attentionItems(boardOf(events), NOW);
@@ -37,6 +38,17 @@ test('faixa lista agente sem nova ação há 10 min', () => {
   assert.deepEqual(itemsOf(silentFor(9)), []);
 });
 
+test('o limite do "sem nova ação" é exato: 10 min entra, 9 min 59 s fica fora', () => {
+  const silentForSeconds = (seconds: number) => [startAgent(15, 'a1'), { ...ev(0, 'PostToolUse', { agent_id: 'a1', tool: 'Read' }), created_at: secondsAgo(seconds) }];
+  assert.deepEqual(itemsOf(silentForSeconds(600)).map(pick), [{ kind: 'silent', target: 'a1', text: 'sem nova ação há 10 min' }]);
+  assert.deepEqual(itemsOf(silentForSeconds(599)), []);
+});
+
+test('reprovação de workflow aberto continua na faixa com a sessão sem sinal', () => {
+  const events = [workflowStart(200), ev(199, 'SubagentStart', { agent_id: 'a1', agent_type: 'workflow-subagent' }), rejectedStop(190, 'a1', { workflow_run_id: 'wf_1' })];
+  assert.deepEqual(itemsOf(events).map((item) => [item.kind, item.target]), [['rejected', 'a1'], ['stale', 's1']]);
+});
+
 test('faixa lista sessão sem sinal', () => {
   const items = itemsOf([ev(30, 'SessionStart'), ev(20, 'PostToolUse', { tool: 'Read' })]);
   assert.deepEqual(items.map((item) => [item.kind, item.target]), [['stale', 's1']]);
@@ -51,6 +63,14 @@ test('quem aguarda você vem primeiro na faixa', () => {
   const events = [
     ev(30, 'SessionStart', { session_id: 'rejeitado' }), startAgent(29, 'a1', { session_id: 'rejeitado' }), rejectedStop(5, 'a1', { session_id: 'rejeitado' }), ev(1, 'PreToolUse', { session_id: 'rejeitado', tool: 'Read' }),
     ev(30, 'SessionStart', { session_id: 'espera' }), ev(2, 'Notification', { session_id: 'espera', summary: 'permission_prompt: x' }),
+  ];
+  assert.deepEqual(itemsOf(events).map((item) => item.kind), ['waiting', 'rejected']);
+});
+
+test('aguardando vem antes do reprovado mesmo quando o reprovado é bem mais novo', () => {
+  const events = [
+    ev(30, 'SessionStart', { session_id: 'espera' }), ev(8, 'Notification', { session_id: 'espera', summary: 'permission_prompt: x' }),
+    ev(30, 'SessionStart', { session_id: 'rejeitado' }), startAgent(29, 'a1', { session_id: 'rejeitado' }), rejectedStop(1, 'a1', { session_id: 'rejeitado' }),
   ];
   assert.deepEqual(itemsOf(events).map((item) => item.kind), ['waiting', 'rejected']);
 });

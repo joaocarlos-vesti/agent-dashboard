@@ -8,6 +8,7 @@ export function CallsSection({ calls }: { calls: CallsBlock }) {
         <h3 className="detail-section__title">Chamadas{calls.items.length > 0 ? ` · ${calls.items.length}` : ''}</h3>
         {calls.rejectedText && <span className="detail-section__alert"><Icon name="rejected" />{calls.rejectedText}</span>}
       </div>
+      {calls.summaryText && <p className="detail-section__summary">{calls.summaryText}</p>}
       {calls.emptyText && <p className="detail-section__empty">{calls.emptyText}</p>}
       <div className="call-list">
         {calls.items.map((call) => (

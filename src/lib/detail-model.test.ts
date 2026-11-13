@@ -124,6 +124,11 @@ describe('Chamadas (T47, T48, T61)', () => {
     expect(block?.rejectedText).toBe('1 reprovada (nº 3)');
   });
 
+  test('o resumo junta chamadas, total, parte da sessão e reprovações', () => {
+    expect(detailOf(calls([1000, 1000, 1200], 2), reviewer).calls?.summaryText).toBe('3 chamadas · total 3,2 mil · 100% da sessão · 1 reprovou');
+    expect(detailOf(calls([1000]), reviewer).calls?.summaryText).toBe('1 chamada · total 1 mil · 100% da sessão');
+  });
+
   test('com 1 ou 2 chamadas não há "fora da curva"', () => {
     const block = detailOf(calls([100, 9000]), reviewer).calls;
     expect(block?.items.map((call) => call.outlier)).toEqual([false, false]);
