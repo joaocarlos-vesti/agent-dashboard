@@ -84,6 +84,16 @@ test('faixa ignora o que não pede ação', () => {
   assert.deepEqual(itemsOf(events), []);
 });
 
+test('sessão aberta de ontem fica fora da faixa, parada sem sinal ou com "sua vez" recente na virada do dia', () => {
+  const sp = (isoTime: string, event: string, extra: EventExtra = {}) => ({ login: 'joao', session_id: 's1', event, created_at: isoTime, ...extra });
+  const morning = Date.parse('2026-11-12T09:00:00Z');
+  const silentSinceYesterday = [sp('2026-11-11T22:00:00Z', 'SessionStart'), sp('2026-11-11T23:00:00Z', 'PostToolUse', { tool: 'Read' })];
+  assert.deepEqual(attentionItems(boardOf(silentSinceYesterday, morning), morning), []);
+  const justAfterMidnight = Date.parse('2026-11-12T00:10:00Z');
+  const stopBeforeMidnight = [sp('2026-11-11T22:00:00Z', 'SessionStart'), sp('2026-11-11T23:45:00Z', 'Stop')];
+  assert.deepEqual(attentionItems(boardOf(stopBeforeMidnight, justAfterMidnight), justAfterMidnight), []);
+});
+
 test('sessão sem sinal não repete os agentes dela na faixa', () => {
   const items = itemsOf([ev(200, 'SessionStart'), startAgent(199, 'a1'), startAgent(198, 'a2')]);
   assert.deepEqual(items.map((item) => [item.kind, item.target]), [['stale', 's1']]);

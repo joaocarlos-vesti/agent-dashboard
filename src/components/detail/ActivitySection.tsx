@@ -16,7 +16,7 @@ export function ActivitySection({ activity, lit }: { activity: ActivityBlock; li
           <span key={index} className={`rhythm__bar${count > 0 ? (lit ? ' rhythm__bar--lit' : ' rhythm__bar--active') : ''}`} style={{ height: heightOf(count) }} />
         ))}
       </div>
-      <div className="rhythm-axis"><span>{activity.startLabel}</span><span>{activity.endLabel}</span></div>
+      <div className="rhythm-axis">{activity.legend ? <span>{activity.legend}</span> : <><span>{activity.startLabel}</span><span>{activity.endLabel}</span></>}</div>
       {activity.recentActions.length > 0 && (
         <ol className="recent-actions">
           {activity.recentActions.map((action, index) => (

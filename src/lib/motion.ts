@@ -26,6 +26,11 @@ function pathFromRoot(tree: MapTree, nodeId: string): string[] {
   return path;
 }
 
+/** Faíscas que a tela mostra: só ao vivo e com movimento normal; em dia passado ou movimento reduzido, os mesmos dados vão em texto. */
+export function sparksShown({ pastDay, reducedMotion, liveEvents, tree, items }: { pastDay: boolean; reducedMotion: boolean; liveEvents: LiveEvent[]; tree: MapTree; items: VisibleItem[] }): Record<string, EdgeSpark[]> {
+  return pastDay || reducedMotion ? {} : sparksByEdge(liveEvents, tree, items);
+}
+
 /** Faísca por linha: ação corre da sessão ao agente; conclusão volta do agente para quem o chamou. Só passa por linhas que estão na tela. */
 export function sparksByEdge(liveEvents: LiveEvent[], tree: MapTree, items: VisibleItem[]): Record<string, EdgeSpark[]> {
   const itemById = new Map(items.map((item) => [item.id, item]));

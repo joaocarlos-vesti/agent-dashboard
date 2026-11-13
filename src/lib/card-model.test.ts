@@ -6,11 +6,11 @@ import { buildMapTree } from './map-tree';
 import { cardModel, type CardModel } from './card-model';
 import type { AgentEvent, BoardOptions } from './types';
 
-function cardOf(events: AgentEvent[], nodeId: string, options: BoardOptions = {}, extra: { cloud?: boolean; open?: boolean } = {}): CardModel {
+function cardOf(events: AgentEvent[], nodeId: string, options: BoardOptions = {}, extra: { open?: boolean } = {}): CardModel {
   const tree = buildMapTree(boardOf(events, options), { pastDay: false });
   const node = tree.nodes[nodeId];
   if (!node) throw new Error(`nó ${nodeId} não existe: ${Object.keys(tree.nodes).join(', ')}`);
-  return cardModel(node, { now: NOW, timeZone: UTC, open: extra.open ?? true, cloudSessionIds: extra.cloud ? new Set(['s1']) : new Set() });
+  return cardModel(node, { now: NOW, timeZone: UTC, open: extra.open ?? true });
 }
 const permission = (minutesAgo: number) => ev(minutesAgo, 'Notification', { summary: 'permission_prompt: Claude needs your permission to use Bash' });
 const brief = (card: CardModel) => [card.stateLabel, card.stateIcon, card.tone];
@@ -77,13 +77,6 @@ describe('marcas de dia (T29)', () => {
   });
 });
 
-describe('nuvem (T30)', () => {
-  test('sessão da nuvem leva o ícone de nuvem; a local, o de terminal', () => {
-    const events = [sessionStart(5), ev(0, 'PreToolUse', { tool: 'Bash' })];
-    expect(cardOf(events, 's1', {}, { cloud: true }).icon).toBe('cloud');
-    expect(cardOf(events, 's1').icon).toBe('terminal');
-  });
-});
 
 describe('card de agente (T31, T32, T33, T36, T64)', () => {
   const runningAgent = [sessionStart(30), looseAgentStart(20, 'l1', 'general-purpose')];

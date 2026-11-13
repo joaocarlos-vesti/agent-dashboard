@@ -107,6 +107,13 @@ describe('estado da tela Conectar (T58)', () => {
     expect(connectView(run([{ type: 'copied' }], generated), context).install?.copyLabel).toBe('Copiado!');
   });
 
+  test('conexão gerada na primeira vez não diz que havia uma anterior; com chave anterior, diz', () => {
+    const first = connectView(run([{ type: 'requestNew' }, { type: 'generated', key: KEY }], neverConnected), context);
+    expect(first.hint).toBe('Rode o comando abaixo para conectar o Claude Code.');
+    const replacing = connectView(run([{ type: 'requestNew' }, { type: 'confirm' }, { type: 'generated', key: KEY }], connected), context);
+    expect(replacing.hint).toBe('A conexão anterior foi desligada. Rode o comando abaixo para conectar de novo.');
+  });
+
   test('falha ao gerar mostra o erro e deixa tentar de novo, sem chave', () => {
     const failed = run([{ type: 'requestNew' }, { type: 'confirm' }, { type: 'generateFailed' }], connected);
     const view = connectView(failed, context);

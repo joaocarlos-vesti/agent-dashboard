@@ -7,8 +7,8 @@ import { addTokens } from './usage';
 import type { Session } from './types';
 
 export type IconKey =
-  | 'terminal' | 'cloud' | 'workflow' | 'robot' | 'running' | 'done' | 'waiting' | 'yourTurn' | 'stale' | 'ended'
-  | 'rejected' | 'silent' | 'outlier' | 'probable' | 'close' | 'arrowRight' | 'chevronRight' | 'chevronDown' | 'external';
+  | 'terminal' | 'workflow' | 'robot' | 'running' | 'done' | 'waiting' | 'yourTurn' | 'stale' | 'ended'
+  | 'rejected' | 'silent' | 'outlier' | 'probable' | 'close' | 'arrowRight' | 'chevronRight' | 'chevronDown';
 export type StateKey = 'running' | 'done' | 'waiting' | 'your_turn' | 'your_turn_old' | 'stale' | 'ended';
 export type CardTone = 'default' | 'waiting' | 'lit' | 'alert' | 'yourTurn' | 'yourTurnOld' | 'stale' | 'ended';
 export type CardTagKind = 'rejected' | 'silent';
@@ -47,7 +47,6 @@ export interface CardContext {
   now: number;
   timeZone: string | undefined;
   open: boolean;
-  cloudSessionIds?: ReadonlySet<string>;
 }
 
 const STATE_PRESENTATION: Record<StateKey, { label: string; icon: IconKey }> = {
@@ -105,10 +104,10 @@ function toneOf({ state, lit, tags }: { state: StateKey; lit: boolean; tags: Car
 
 type CardParts = Pick<CardModel, 'title' | 'titleHint' | 'icon' | 'state' | 'stateDetail' | 'actionText' | 'tokensText' | 'tokensCaption' | 'tags' | 'marks' | 'lit' | 'probableSameAgent'> & { actionAt: number[]; callsSummary?: string | null };
 
-function sessionParts(session: Session, { now, timeZone, isCloud }: { now: number; timeZone: string | undefined; isCloud: boolean }): CardParts {
+function sessionParts(session: Session, { now, timeZone }: { now: number; timeZone: string | undefined }): CardParts {
   const title = folderName(session.cwd) ?? 'sessão';
   return {
-    title, titleHint: title, icon: isCloud ? 'cloud' : 'terminal', state: sessionState(session), stateDetail: sessionDetail(session, now, timeZone),
+    title, titleHint: title, icon: 'terminal', state: sessionState(session), stateDetail: sessionDetail(session, now, timeZone),
     actionText: null, tokensText: formatTokens(session.tokens.day.primary), tokensCaption: sessionCaption(session), tags: [],
     marks: [
       session.startedLabel ? `← ${session.startedLabel}` : null,
@@ -155,9 +154,9 @@ const actsByItself = (node: TreeNode) => node.kind === 'agent' || (node.kind ===
 const hasPulseRow = (node: TreeNode) => node.kind === 'agent' || (node.kind === 'session' && node.childIds.length === 0);
 
 /** Tudo que um card do mapa mostra, já em texto; o componente só desenha. */
-export function cardModel(node: TreeNode, { now, timeZone, open, cloudSessionIds }: CardContext): CardModel {
+export function cardModel(node: TreeNode, { now, timeZone, open }: CardContext): CardModel {
   const parts = node.kind === 'session'
-    ? sessionParts(node.session, { now, timeZone, isCloud: cloudSessionIds?.has(node.id) ?? false })
+    ? sessionParts(node.session, { now, timeZone })
     : node.kind === 'workflow' ? workflowParts(node) : agentParts(node.unit, now);
   const { actionAt, ...shown } = parts;
   const presentation = statePresentation(shown.state);

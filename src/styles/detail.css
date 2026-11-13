@@ -23,7 +23,6 @@
 .detail-callout__text { font-size: 13px; color: var(--soft); }
 .detail-callout__label { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint); }
 .detail-callout__reply { font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
-.detail-callout__link { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; margin-top: 4px; padding: 0 12px; border-radius: 8px; background: var(--amber); color: var(--amber-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
 .detail-mono { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 
 .detail-section { display: flex; flex-direction: column; gap: 8px; }

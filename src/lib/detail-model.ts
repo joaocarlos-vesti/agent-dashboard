@@ -13,18 +13,18 @@ export interface DetailContext {
   timeZone: string | undefined;
   events: AgentEvent[];
   tree: MapTree;
-  cloudSessionIds?: Set<string>;
   pastDay: boolean;
   taskExpanded: boolean;
 }
 
-export interface PermissionBlock { since: string; instruction: string; folder: string | null; branch: string | null; openSessionUrl: string | null }
+export interface PermissionBlock { since: string; instruction: string; folder: string | null; branch: string | null }
 export interface RecentAction { text: string; relative: string; exact: string }
 export interface ActivityBlock {
   title: string;
   bars: number[];
   total: number;
   totalLabel: string;
+  legend: string | null;
   startLabel: string;
   endLabel: string;
   wholeSession: boolean;
@@ -63,7 +63,6 @@ export interface DetailModel {
 const RECENT_WINDOW_MS = 10 * 60 * 1000;
 const RECENT_ACTIONS_SHOWN = 5;
 const TASK_COLLAPSED_LIMIT = 140;
-const OPEN_SESSION_URL = 'https://claude.ai/code';
 const START_MISSING_TEXT = 'O início desta sessão não foi guardado (hook instalado depois do começo, sessão retomada ou início com mais de 7 dias).';
 const UNKNOWN_TOKENS_TEXT = 'Tokens aparecem quando o agente termina.';
 const NO_AGENTS_TEXT = 'Nenhum agente chamado nesta sessão.';
@@ -108,7 +107,7 @@ function activityOf(node: TreeNode, { now, timeZone, events, tree, pastDay }: De
     const endLabel = clockTime(endMs, timeZone);
     const bars = endedRhythm(actionTimes, startMs, endMs);
     const total = sumOf(bars);
-    return { title: 'Durante a sessão', bars, total, totalLabel: `${actionsWord(total)} na sessão (${startLabel}–${endLabel})`, startLabel, endLabel, wholeSession: true, recentActions: [], emptyText: null };
+    return { title: 'Durante a sessão', bars, total, totalLabel: `${actionsWord(total)} na sessão`, legend: `sessão inteira (${startLabel}–${endLabel})`, startLabel, endLabel, wholeSession: true, recentActions: [], emptyText: null };
   }
   const bars = rhythm(actionTimes, now);
   const showsActor = node.kind !== 'agent';
@@ -123,7 +122,7 @@ function activityOf(node: TreeNode, { now, timeZone, events, tree, pastDay }: De
     });
   const total = sumOf(bars);
   return {
-    title: 'Agora', bars, total, totalLabel: `${actionsWord(total)} em 10 min`, startLabel: '10 min atrás', endLabel: 'agora',
+    title: 'Agora', bars, total, totalLabel: `${actionsWord(total)} em 10 min`, legend: null, startLabel: '10 min atrás', endLabel: 'agora',
     wholeSession: false, recentActions, emptyText: recentActions.length === 0 ? NO_RECENT_ACTIONS_TEXT : null,
   };
 }
@@ -131,15 +130,13 @@ function activityOf(node: TreeNode, { now, timeZone, events, tree, pastDay }: De
 const sumOf = (counts: number[]) => counts.reduce((sum, count) => sum + count, 0);
 const actionsWord = (total: number) => (total === 1 ? 'ação' : 'ações');
 
-function permissionOf(node: TreeNode, { now, cloudSessionIds }: DetailContext): PermissionBlock | null {
+function permissionOf(node: TreeNode, { now }: DetailContext): PermissionBlock | null {
   if (node.kind !== 'session' || node.session.status !== 'waiting') return null;
-  const isCloud = cloudSessionIds?.has(node.session.id) ?? false;
   return {
     since: formatRelativeTime(node.session.statusSince, now),
-    instruction: isCloud ? 'Responda na própria sessão.' : 'Responda no terminal:',
+    instruction: 'Responda no terminal:',
     folder: folderName(node.session.cwd),
     branch: node.session.branch,
-    openSessionUrl: isCloud ? OPEN_SESSION_URL : null,
   };
 }
 
@@ -194,7 +191,7 @@ function childrenOf(node: TreeNode, context: DetailContext): { title: string | n
   const amounts = childNodes.map((child) => tokensOfNode(child).primary);
   const largest = Math.max(0, ...amounts);
   const bars = childNodes.map((child, index): ChildBar => {
-    const card = cardModel(child, { now: context.now, timeZone: context.timeZone, open: true, cloudSessionIds: context.cloudSessionIds });
+    const card = cardModel(child, { now: context.now, timeZone: context.timeZone, open: true });
     return {
       id: child.id, title: card.title, icon: card.icon, state: card.state, stateIcon: card.stateIcon, tokensText: formatTokens(amounts[index]),
       widthPct: barWidth(amounts[index] ?? 0, largest), alert: card.tags[0]?.text ?? null, lit: card.lit,
@@ -227,7 +224,7 @@ function taskOf(node: TreeNode, { taskExpanded }: DetailContext): TaskBlock | nu
 }
 
 function pathOf(node: TreeNode, context: DetailContext): string {
-  if (node.kind === 'session') return context.cloudSessionIds?.has(node.id) ? 'Sessão na nuvem' : 'Sessão local';
+  if (node.kind === 'session') return 'Sessão';
   const titles: string[] = [];
   for (let parentId: string | null = node.parentId; parentId; parentId = context.tree.nodes[parentId]?.parentId ?? null) {
     const parent = context.tree.nodes[parentId];
@@ -238,7 +235,7 @@ function pathOf(node: TreeNode, context: DetailContext): string {
 
 /** Tudo que o painel de detalhe mostra de um card, na ordem das perguntas do dev. */
 export function detailModel(node: TreeNode, context: DetailContext): DetailModel {
-  const card = cardModel(node, { now: context.now, timeZone: context.timeZone, open: true, cloudSessionIds: context.cloudSessionIds });
+  const card = cardModel(node, { now: context.now, timeZone: context.timeZone, open: true });
   const { title: childrenTitle, bars: children } = childrenOf(node, context);
   return {
     id: node.id, kind: node.kind, icon: card.icon, title: card.title, path: pathOf(node, context),

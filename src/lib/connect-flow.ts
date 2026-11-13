@@ -63,7 +63,8 @@ export interface ConnectView {
 
 const CONFIRMATION_TEXT = 'Isso desliga o Claude Code já conectado, no terminal e na nuvem. Depois você roda o comando de novo em cada lugar.';
 const GENERATE_FAILED_TEXT = 'Não foi possível gerar a conexão. Confira a internet e tente de novo.';
-const NEW_KEY_HINT = 'A conexão anterior foi desligada. Rode o comando abaixo para conectar de novo.';
+const REPLACED_KEY_HINT = 'A conexão anterior foi desligada. Rode o comando abaixo para conectar de novo.';
+const FIRST_KEY_HINT = 'Rode o comando abaixo para conectar o Claude Code.';
 
 const EMPTY_VIEW: ConnectView = { headline: '', hint: null, error: null, canRetryStatus: false, action: null, confirmation: null, install: null };
 
@@ -95,7 +96,7 @@ export function connectView(state: ConnectState, { now, origin, networkHost, tim
   const overview = overviewOf(status.value, { now, timeZone });
   if (step.kind === 'generated') {
     return {
-      ...EMPTY_VIEW, headline: 'Nova conexão gerada', hint: NEW_KEY_HINT,
+      ...EMPTY_VIEW, headline: 'Nova conexão gerada', hint: status.value.hasKey ? REPLACED_KEY_HINT : FIRST_KEY_HINT,
       install: { command: `curl -fsSL ${origin}/install.sh | bash -s -- ${step.key}`, cloudVariable: `INGEST_KEY=${step.key}`, networkHost, copyLabel: step.copied ? 'Copiado!' : 'Copiar comando' },
     };
   }

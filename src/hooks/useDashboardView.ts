@@ -8,7 +8,7 @@ import { gaugeModel } from '../lib/gauge-model';
 import { headerModel } from '../lib/header-model';
 import type { CardModel } from '../lib/card-model';
 import { buildMapScene } from '../lib/map-scene';
-import { sparksByEdge } from '../lib/motion';
+import { sparksShown } from '../lib/motion';
 import { buildMapTree, nodesWithChildren, revealPathOf } from '../lib/map-tree';
 import { screenState } from '../lib/screen-state';
 import { stripModel, type StripChip } from '../lib/strip-model';
@@ -40,9 +40,8 @@ export function useDashboardView() {
   const scene = useMemo(() => buildMapScene({ board, ui, now: shownNow, timeZone: BROWSER_TIME_ZONE, pastDay }), [board, ui, shownNow, pastDay]);
 
   useTabIndicator(useMemo(() => tabSessionsOf(todayBoard), [todayBoard]));
-  // Dia passado e movimento reduzido ficam sem faíscas; os mesmos dados aparecem em texto.
   const sparks = useMemo(
-    () => (pastDay || reducedMotion ? {} : sparksByEdge(liveSparks.liveEvents, scene.tree, scene.items)),
+    () => sparksShown({ pastDay, reducedMotion, liveEvents: liveSparks.liveEvents, tree: scene.tree, items: scene.items }),
     [pastDay, reducedMotion, liveSparks.liveEvents, scene.tree, scene.items],
   );
 

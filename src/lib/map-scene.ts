@@ -18,13 +18,12 @@ export interface MapSceneInput {
   now: number;
   timeZone: string | undefined;
   pastDay: boolean;
-  cloudSessionIds?: Set<string>;
 }
 
 const statusOf = (node: TreeNode): string => (node.kind === 'workflow' ? node.workflow.status : node.kind === 'agent' ? node.unit.status : node.session.status);
 
 /** Tudo que o mapa precisa para desenhar: os cards visíveis, já em texto, e o estado de cada linha. */
-export function buildMapScene({ board, ui, now, timeZone, pastDay, cloudSessionIds }: MapSceneInput): MapScene {
+export function buildMapScene({ board, ui, now, timeZone, pastDay }: MapSceneInput): MapScene {
   const tree = buildMapTree(board, { pastDay });
   const items = visibleItems(tree, ui);
   const cards: Record<string, CardModel> = {};
@@ -32,7 +31,7 @@ export function buildMapScene({ board, ui, now, timeZone, pastDay, cloudSessionI
   for (const item of items) {
     const node = item.kind === 'node' ? tree.nodes[item.id] : undefined;
     if (!node) continue;
-    const card = cardModel(node, { now, timeZone, open: isNodeOpen(tree, node.id, ui.nodeOpen), cloudSessionIds });
+    const card = cardModel(node, { now, timeZone, open: isNodeOpen(tree, node.id, ui.nodeOpen) });
     cards[node.id] = card;
     if (node.kind !== 'session') edgeLines[node.id] = edgeLineOf({ status: statusOf(node), lit: card.lit, inEndedSession: node.session.status === 'ended', frozen: pastDay });
   }

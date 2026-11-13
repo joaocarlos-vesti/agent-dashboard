@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { buildBoard, allSessionsOf, tabSessionsOf } from './board';
+import { mergeEvents } from './queries';
 import type { AgentEvent, BoardOptions, Session } from './types';
 import { attentionItems } from './attention';
 import { gaugeSummary, lineState } from './activity';
@@ -411,6 +412,33 @@ test('tokens do dia não dobram sessão de dois dias', () => {
 test('na vista de ontem o dia é ontem', () => {
   const [session] = allSessionsOf(sp(twoDaySession, NOW_SP, { day: '2026-11-11' }));
   assert.equal(session.tokens.day.primary, 100000);
+});
+
+test('dia passado não acende nada, mesmo com ação nos últimos segundos do dia e o painel conectado', () => {
+  const lastSeconds = [
+    evAt('2026-11-11T23:00:00-03:00', 'SessionStart'),
+    evAt('2026-11-11T23:59:00-03:00', 'SubagentStart', { agent_id: 'a1', agent_type: 'general-purpose' }),
+    evAt('2026-11-11T23:59:55-03:00', 'PostToolUse', { agent_id: 'a1', tool: 'Read' }),
+    evAt('2026-11-11T23:59:56-03:00', 'PostToolUse', { tool: 'Read' }),
+  ];
+  const [yesterdaySession] = allSessionsOf(sp(lastSeconds, NOW_SP, { day: '2026-11-11', connected: true }));
+  assert.deepEqual([yesterdaySession.lit, yesterdaySession.agents[0].lit], [false, false]);
+  const [liveSession] = allSessionsOf(sp(lastSeconds, Date.parse('2026-11-11T23:59:59-03:00'), { day: '2026-11-11', connected: true }));
+  assert.deepEqual([liveSession.lit, liveSession.agents[0].lit], [true, true]);
+});
+
+test('evento ao vivo sobe os tokens do agente, da sessão e do dia sem recarregar', () => {
+  const loaded = [
+    evAt('2026-11-12T08:00:00-03:00', 'SessionStart'),
+    evAt('2026-11-12T08:10:00-03:00', 'Stop', { id: 1, ...tokens(10000, 0) }),
+    evAt('2026-11-12T09:00:00-03:00', 'SubagentStart', { id: 2, agent_id: 'a1', agent_type: 'general-purpose' }),
+  ];
+  const before = sp(loaded)[0].sessions[0];
+  assert.deepEqual([before.agents[0].tokens, before.tokens.day.primary], [null, 10000]);
+  const afterAgent = sp(mergeEvents(loaded, [evAt('2026-11-12T09:20:00-03:00', 'SubagentStop', { id: 3, agent_id: 'a1', summary: 'ok', ...tokens(3000, 1000) })]))[0].sessions[0];
+  assert.deepEqual([afterAgent.agents[0].tokens?.primary, afterAgent.tokens.day.primary], [4000, 14000]);
+  const afterStop = sp(mergeEvents(loaded, [evAt('2026-11-12T09:25:00-03:00', 'Stop', { id: 4, ...tokens(16000, 0) })]))[0].sessions[0];
+  assert.equal(afterStop.tokens.day.primary, 16000);
 });
 
 test('queda do acumulado na virada do dia não gera tokens negativos e a base recomeça', () => {

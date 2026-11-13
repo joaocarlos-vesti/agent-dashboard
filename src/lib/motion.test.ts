@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { ENTERING_MS, SPARK_LIFETIME_MS, SPARK_STEP_MS, isEntering, liveClockMs, pruneLiveEvents, sparksByEdge, type LiveEvent } from './motion';
+import { ENTERING_MS, SPARK_LIFETIME_MS, SPARK_STEP_MS, isEntering, liveClockMs, pruneLiveEvents, sparksByEdge, sparksShown, type LiveEvent } from './motion';
 import { buildMapScene } from './map-scene';
 import { NOW, UTC, boardOf, ev, evSeconds, looseAgentStart, sessionStart, workflowAgentStart, workflowStart } from './test-fixtures';
 import { initialUiState } from './ui-state';
@@ -10,6 +10,16 @@ const baseEvents = [sessionStart(60), workflowStart(50), workflowAgentStart(49, 
 const sceneOf = (events: AgentEvent[], uiState = ui) => buildMapScene({ board: boardOf(events), ui: uiState, now: NOW, timeZone: UTC, pastDay: false });
 const live = (event: AgentEvent, key = 'k1'): LiveEvent => ({ key, event, receivedAt: NOW });
 const action = (agentId: string | null) => evSeconds(0, 'PostToolUse', { tool: 'Read', summary: 'a.ts', ...(agentId ? { agent_id: agentId, agent_type: 'workflow-subagent' } : {}) });
+
+describe('faíscas em dia passado e com movimento reduzido', () => {
+  const scene = sceneOf(baseEvents);
+  const shown = (flags: { pastDay: boolean; reducedMotion: boolean }) => sparksShown({ ...flags, liveEvents: [live(action('a1'))], tree: scene.tree, items: scene.items });
+  test('só aparecem ao vivo e com movimento normal', () => {
+    expect(Object.keys(shown({ pastDay: false, reducedMotion: false }))).toHaveLength(2);
+    expect(shown({ pastDay: true, reducedMotion: false })).toEqual({});
+    expect(shown({ pastDay: false, reducedMotion: true })).toEqual({});
+  });
+});
 
 describe('faíscas nas linhas (uma por ação real)', () => {
   test('ação de agente de workflow corre da sessão ao workflow e ao agente, uma linha depois da outra', () => {

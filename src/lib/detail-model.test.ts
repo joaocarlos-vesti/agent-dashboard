@@ -4,11 +4,11 @@ import { buildMapTree } from './map-tree';
 import { NOTHING_SELECTED_TEXT, detailModel, type DetailModel } from './detail-model';
 import type { AgentEvent, BoardOptions } from './types';
 
-function detailOf(events: AgentEvent[], nodeId: string, options: BoardOptions = {}, extra: { cloud?: boolean; taskExpanded?: boolean; pastDay?: boolean } = {}): DetailModel {
+function detailOf(events: AgentEvent[], nodeId: string, options: BoardOptions = {}, extra: { taskExpanded?: boolean; pastDay?: boolean } = {}): DetailModel {
   const tree = buildMapTree(boardOf(events, options), { pastDay: extra.pastDay ?? false });
   const node = tree.nodes[nodeId];
   if (!node) throw new Error(`nó ${nodeId} não existe: ${Object.keys(tree.nodes).join(', ')}`);
-  return detailModel(node, { now: NOW, timeZone: UTC, events, tree, cloudSessionIds: new Set(extra.cloud ? ['s1'] : []), pastDay: extra.pastDay ?? false, taskExpanded: extra.taskExpanded ?? false });
+  return detailModel(node, { now: NOW, timeZone: UTC, events, tree, pastDay: extra.pastDay ?? false, taskExpanded: extra.taskExpanded ?? false });
 }
 const permission = (minutesAgo: number) => ev(minutesAgo, 'Notification', { summary: 'permission_prompt: Claude needs your permission to use Bash' });
 const reviewer = 's1::agents::logic-reviewer';
@@ -20,12 +20,7 @@ test('nada selecionado tem texto próprio', () => {
 describe('pedido de permissão (T43, T44)', () => {
   test('diz onde responder: pasta e branch', () => {
     const { permission: block } = detailOf([sessionStart(10), permission(6)], 's1');
-    expect(block).toEqual({ since: 'há 6 min', instruction: 'Responda no terminal:', folder: 'loja-web', branch: 'main', openSessionUrl: null });
-  });
-
-  test('na nuvem, a instrução muda e aparece o botão "Abrir a sessão"', () => {
-    const { permission: block } = detailOf([sessionStart(10), permission(6)], 's1', {}, { cloud: true });
-    expect([block?.instruction, block?.openSessionUrl]).toEqual(['Responda na própria sessão.', 'https://claude.ai/code']);
+    expect(block).toEqual({ since: 'há 6 min', instruction: 'Responda no terminal:', folder: 'loja-web', branch: 'main' });
   });
 
   test('sem branch, só a pasta (sem rótulo vazio)', () => {
@@ -88,7 +83,8 @@ describe('Agora (T45, T46, T60)', () => {
   test('sessão encerrada: o ritmo cobre a sessão inteira, do início ao fim', () => {
     const events = [sessionStart(120), ev(100, 'PostToolUse', { tool: 'Read', summary: 'a.ts' }), ev(80, 'SessionEnd')];
     const activity = detailOf(events, 's1').activity;
-    expect([activity?.wholeSession, activity?.startLabel, activity?.endLabel, activity?.totalLabel, activity?.total]).toEqual([true, '10:00', '10:40', 'ação na sessão (10:00–10:40)', 1]);
+    expect([activity?.wholeSession, activity?.startLabel, activity?.endLabel, activity?.totalLabel, activity?.total]).toEqual([true, '10:00', '10:40', 'ação na sessão', 1]);
+    expect(activity?.legend).toBe('sessão inteira (10:00–10:40)');
     expect(activity?.bars).toHaveLength(40);
     expect(activity?.recentActions).toEqual([]);
   });
@@ -214,15 +210,16 @@ describe('Tokens (T49, T50, T53)', () => {
   test('início com mais de 7 dias que não está guardado vira aviso', () => {
     const detail = detailOf([ev(5, 'Stop', { input_tokens: 100, output_tokens: 10 })], 's1');
     expect(detail.startMissingNotice).toBe('O início desta sessão não foi guardado (hook instalado depois do começo, sessão retomada ou início com mais de 7 dias).');
+    expect(detailOf([sessionStart(10), ev(5, 'Stop', { input_tokens: 100, output_tokens: 10 })], 's1').startMissingNotice).toBeNull();
   });
 });
 
 describe('textos no singular e no dia visto', () => {
   test('uma ação só fica no singular, no "Agora" e na sessão encerrada', () => {
     const now = detailOf([sessionStart(10), ev(2, 'PostToolUse', { tool: 'Read', summary: 'a.ts' })], 's1').activity;
-    expect([now?.total, now?.totalLabel]).toEqual([1, 'ação em 10 min']);
+    expect([now?.total, now?.totalLabel, now?.legend]).toEqual([1, 'ação em 10 min', null]);
     const ended = detailOf([sessionStart(40), ev(30, 'PostToolUse', { tool: 'Read', summary: 'a.ts' }), ev(0, 'SessionEnd')], 's1').activity;
-    expect([ended?.total, ended?.totalLabel]).toEqual([1, 'ação na sessão (11:20–12:00)']);
+    expect([ended?.total, ended?.totalLabel, ended?.legend]).toEqual([1, 'ação na sessão', 'sessão inteira (11:20–12:00)']);
   });
 
   test('a última resposta ignora Stop depois do "agora" da vista (dia passado)', () => {
@@ -257,10 +254,9 @@ describe('Tarefa (T51, T62)', () => {
 });
 
 describe('cabeçalho', () => {
-  test('mostra o caminho: sessão local ou na nuvem para a raiz, os pais para os filhos', () => {
+  test('mostra o caminho: "Sessão" para a raiz, os pais para os filhos', () => {
     const events = [sessionStart(60), workflowStart(50), workflowAgentStart(49, 'a1'), ev(0, 'PreToolUse', { tool: 'Read' })];
-    expect(detailOf(events, 's1').path).toBe('Sessão local');
-    expect(detailOf(events, 's1', {}, { cloud: true }).path).toBe('Sessão na nuvem');
+    expect(detailOf(events, 's1').path).toBe('Sessão');
     expect(detailOf(events, 'a1').path).toBe('loja-web › Revisão do checkout');
   });
 
