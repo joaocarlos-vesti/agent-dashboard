@@ -93,7 +93,7 @@ function growthSince(previous: Tokens, current: Tokens): Tokens {
  * Tokens da conversa de uma sessão, dia a dia. O Stop traz o acumulado; o gasto é a diferença entre Stops.
  * Sem o início da sessão guardado, o primeiro Stop é só a base e não entra em nenhum dia.
  */
-export function conversationUsage(
+function conversationUsage(
   sessionEvents: AgentEvent[],
   { timeZone, startMissing }: { timeZone: string | undefined; startMissing: boolean },
 ): { total: Tokens; byDay: Record<string, Tokens> } {

@@ -35,8 +35,8 @@ export function clockTime(instant: Instant, timeZone: string | undefined): strin
   return `${pad(hour)}:${pad(minute)}`;
 }
 
-export const addDays = (day: string, amount: number) => new Date(dayStartUtcMs(day) + amount * 24 * 60 * MINUTE_MS).toISOString().slice(0, 10);
-export const daysBetween = (fromDay: string, toDay: string) => Math.round((dayStartUtcMs(toDay) - dayStartUtcMs(fromDay)) / (24 * 60 * MINUTE_MS));
+const addDays = (day: string, amount: number) => new Date(dayStartUtcMs(day) + amount * 24 * 60 * MINUTE_MS).toISOString().slice(0, 10);
+const daysBetween = (fromDay: string, toDay: string) => Math.round((dayStartUtcMs(toDay) - dayStartUtcMs(fromDay)) / (24 * 60 * MINUTE_MS));
 
 function offsetMs(instant: number, timeZone: string | undefined): number {
   const { year, month, day, hour, minute, second } = localParts(instant, timeZone);

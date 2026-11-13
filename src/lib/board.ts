@@ -1,6 +1,6 @@
-import { emptyTokens, rejectionExcerpt, sessionTokens, summarizeCalls, tokensOfEvent, weekTokens } from './usage';
+import { emptyTokens, rejectionExcerpt, sessionTokens, summarizeCalls, tokensOfEvent } from './usage';
 import { countByDay, isActive } from './activity';
-import { clockTime, continuationLabel, dayBounds, dayOptions, effectiveNow, localDay, resumedLabel, startedLabel } from './day';
+import { clockTime, continuationLabel, dayBounds, effectiveNow, localDay, resumedLabel, startedLabel } from './day';
 import { describeAction, formatRelativeTime } from './format';
 import type { Agent, AgentEvent, Board, BoardOptions, LooseAgentGroup, Person, Session, SessionStatus, Workflow, WorkflowAgentGroup } from './types';
 
@@ -382,13 +382,4 @@ export function buildBoard(events: AgentEvent[], now: number = Date.now(), optio
   return [...groupBy(ordered, (event) => event.login)]
     .map(([login, personEvents]) => buildPerson(login, personEvents, view))
     .filter((person) => allSessionsOf([person]).length > 0);
-}
-
-/** Tokens de cada um dos 7 dias do seletor, somando por evento todas as sessões carregadas (inclusive as que o mapa do dia esconde). */
-export function buildWeekTokens(events: AgentEvent[], now: number, timeZone: string | undefined) {
-  const ordered = events.filter((event) => isRelevantEvent(event) && !isIdleNotification(event)).sort(byTime);
-  const sessions = [...groupBy(ordered, (event) => `${event.login}/${event.session_id}`).values()].map((sessionEvents) => ({
-    tokens: sessionTokens(sessionEvents, { timeZone, startMissing: sessionEvents[0] ? isStartMissing(sessionEvents[0]) : false }),
-  }));
-  return weekTokens(sessions, dayOptions(now, timeZone).map(({ day }) => day));
 }

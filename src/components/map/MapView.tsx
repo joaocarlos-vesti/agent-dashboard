@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node } from '@xyflow/react';
+import { useCallback, useMemo, useState } from 'react';
+import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useCanvasWidth } from '../../hooks/useCanvasWidth';
+import { useFocusOnSelected } from '../../hooks/useFocusOnSelected';
+import { useLatestRef } from '../../hooks/useLatestRef';
 import type { CardModel } from '../../lib/card-model';
 import type { MapOrientation } from '../../lib/layout-mode';
 import { layoutMap, type MapLayout } from '../../lib/map-layout';
@@ -14,7 +17,6 @@ import { TreeEdgeView, type TreeEdgeType } from './TreeEdge';
 const NODE_TYPES = { card: CardNodeView, group: GroupNodeView, more: MoreNodeView };
 const EDGE_TYPES = { tree: TreeEdgeView };
 const HEIGHT_TOLERANCE_PX = 0.5;
-const FOCUS_ZOOM = 1;
 const PAN_MARGIN = 400;
 
 export interface MapActions {
@@ -64,47 +66,32 @@ function toFlowElements(layout: MapLayout, nodes: MapNode[], heights: Record<str
 
 function MapCanvas({ scene, orientation, selectedId, focusNonce, frozen, sparks, ...actions }: MapViewProps) {
   const { heights, reportHeight } = useMeasuredHeights();
-  const { setCenter, getZoom } = useReactFlow();
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const [availableWidth, setAvailableWidth] = useState(360);
-  const handledFocus = useRef(focusNonce);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const follow = () => setAvailableWidth(Math.max(240, canvas.clientWidth - 32));
-    follow();
-    const observer = new ResizeObserver(follow);
-    observer.observe(canvas);
-    return () => observer.disconnect();
-  }, []);
+  const { canvasRef, availableWidth } = useCanvasWidth();
+  const latestActions = useLatestRef<MapActions>(actions);
+  const stableActions = useMemo<MapActions>(() => ({
+    onActivateCard: (card) => latestActions.current.onActivateCard(card),
+    onToggleCard: (card) => latestActions.current.onToggleCard(card),
+    onToggleGroup: (group) => latestActions.current.onToggleGroup(group),
+    onShowAllAgents: (workflowId) => latestActions.current.onShowAllAgents(workflowId),
+    onCollapseAll: () => latestActions.current.onCollapseAll(),
+  }), [latestActions]);
 
   const layout = useMemo(
     () => layoutMap({ items: scene.items, heights, edgeLines: scene.edgeLines, orientation, availableWidth }),
     [scene.items, scene.edgeLines, heights, orientation, availableWidth],
   );
   const mapNodes = useMemo(
-    () => scene.items.flatMap((item) => nodeOf(item, scene, selectedId, { ...actions, reportHeight }) ?? []),
-    // As ações vêm do pai a cada render; o que muda o desenho é a cena e a seleção.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scene, selectedId, reportHeight],
+    () => scene.items.flatMap((item) => nodeOf(item, scene, selectedId, { ...stableActions, reportHeight }) ?? []),
+    [scene, selectedId, stableActions, reportHeight],
   );
   const { nodes, edges } = useMemo(() => toFlowElements(layout, mapNodes, heights), [layout, mapNodes, heights]);
-
-  // O clique na faixa de atenção leva o mapa até o card (depois de abrir o que o escondia).
-  useEffect(() => {
-    if (focusNonce === handledFocus.current || !selectedId) return;
-    const target = layout.placed[selectedId];
-    if (!target) return;
-    handledFocus.current = focusNonce;
-    void setCenter(target.x + target.width / 2, target.y + (heights[selectedId] ?? 96) / 2, { zoom: Math.min(getZoom(), FOCUS_ZOOM), duration: 300 });
-  }, [focusNonce, selectedId, layout, heights, setCenter, getZoom]);
+  useFocusOnSelected({ focusNonce, selectedId, layout, heights });
 
   return (
     <div className="map-area">
       {orientation === 'horizontal' && (
         <div className="map-toolbar">
-          <button type="button" className="map-toolbar__button" onClick={actions.onCollapseAll}>Recolher tudo</button>
+          <button type="button" className="map-toolbar__button" onClick={stableActions.onCollapseAll}>Recolher tudo</button>
         </div>
       )}
       <div ref={canvasRef} className={`map-canvas${frozen ? ' map-canvas--frozen' : ''}`}>

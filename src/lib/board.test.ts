@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { buildBoard, allSessionsOf, buildWeekTokens } from './board';
+import { buildBoard, allSessionsOf } from './board';
 import type { AgentEvent, Board, BoardOptions, Session } from './types';
 import { attentionItems } from './attention';
 import { gaugeSummary, lineState } from './activity';
@@ -425,29 +425,9 @@ test('ações do dia contam só os eventos do dia', () => {
   assert.deepEqual(session.actionsByDay, { '2026-11-11': 5, '2026-11-12': 3 });
 });
 
-const weekPrimaryByDay = (week: ReturnType<typeof buildWeekTokens>) => Object.fromEntries(week.days.map(({ day, tokens: usage }) => [day, usage.primary]));
-
-test('semana soma os dias sem contar em dobro', () => {
-  const week = buildWeekTokens(twoDaySession, NOW_SP, SP);
-  assert.equal(week.total.primary, 160000);
-  assert.equal(week.days.length, 7);
-  assert.deepEqual(week.days.slice(0, 2).map(({ tokens: usage }) => usage.primary), [60000, 100000]);
-});
-
-test('semana inclui sessão encerrada ontem, que o mapa de hoje não mostra', () => {
-  const events = [
-    evAt('2026-11-11T20:00:00-03:00', 'SessionStart'),
-    evAt('2026-11-11T22:00:00-03:00', 'Stop', tokens(90000, 10000)),
-    evAt('2026-11-11T23:00:00-03:00', 'SessionEnd'),
-  ];
-  assert.equal(allSessionsOf(sp(events)).length, 0);
-  assert.deepEqual(weekPrimaryByDay(buildWeekTokens(events, NOW_SP, SP)), { '2026-11-12': 0, '2026-11-11': 100000, '2026-11-10': 0, '2026-11-09': 0, '2026-11-08': 0, '2026-11-07': 0, '2026-11-06': 0 });
-});
-
-test('semana não muda com o dia visto no mapa', () => {
-  const week = buildWeekTokens(twoDaySession, NOW_SP, SP);
-  assert.equal(week.total.primary, 160000);
+test('tokens totais da sessão não mudam com o dia visto no mapa', () => {
   assert.equal(allSessionsOf(sp(twoDaySession, NOW_SP, { day: '2026-11-11' }))[0].tokens.total.primary, 100000);
+  assert.equal(allSessionsOf(sp(twoDaySession, NOW_SP, { day: '2026-11-12' }))[0].tokens.total.primary, 160000);
 });
 
 test('sessão nova hoje conta tudo; sem início guardado o dia começa do zero', () => {

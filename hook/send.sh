@@ -75,7 +75,8 @@ fi
 
 payload=$(jq -cn --arg key "$INGEST_KEY" --argjson event "$dashboard_event" '{p_key: $key, p_event: $event}')
 if [ -n "$DASHBOARD_DRY_FILE" ]; then echo "$payload" >> "$DASHBOARD_DRY_FILE"; exit 0; fi
-curl -s -m 2 -o /dev/null -X POST "$SUPABASE_URL/rest/v1/rpc/ingest" \
-  -H "apikey: $SUPABASE_ANON_KEY" -H "Content-Type: application/json" -d "$payload" >/dev/null 2>&1 &
+# O payload (com a chave de envio) vai por stdin para não aparecer nos argumentos do processo.
+printf '%s' "$payload" | curl -s -m 2 -o /dev/null -X POST "$SUPABASE_URL/rest/v1/rpc/ingest" \
+  -H "apikey: $SUPABASE_ANON_KEY" -H "Content-Type: application/json" --data-binary @- >/dev/null 2>&1 &
 disown
 exit 0

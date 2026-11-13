@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -175,4 +175,24 @@ test('REPROVADO só conta como veredito, não como citação de reprovação ant
 test('vale o último veredito do texto', () => {
   const summary = subagentResult(`${'Revisei de novo. '.repeat(12)}VEREDITO: APROVADO na rodada 1, mas depois achei outro problema. VEREDITO: REPROVADO por falta de teste`);
   assert.match(summary, /^VEREDITO: REPROVADO/);
+});
+
+test('o envio real leva a chave só pelo stdin, nunca nos argumentos do curl', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'painel-hook-'));
+  mkdirSync(join(home, '.agent-dashboard'));
+  writeFileSync(join(home, '.agent-dashboard', 'config'), 'INGEST_KEY=11111111-2222-3333-4444-555555555555\n');
+  const fakeBin = join(home, 'bin');
+  mkdirSync(fakeBin);
+  const argsFile = join(home, 'curl-args.txt');
+  const stdinFile = join(home, 'curl-stdin.txt');
+  const doneFile = join(home, 'curl-done');
+  writeFileSync(join(fakeBin, 'curl'), `#!/bin/bash\nprintf '%s\\n' "$@" > '${argsFile}'\ncat > '${stdinFile}'\ntouch '${doneFile}'\n`);
+  chmodSync(join(fakeBin, 'curl'), 0o755);
+  const hookInput = { hook_event_name: 'Stop', session_id: 's1', cwd: '/tmp' };
+  execFileSync('bash', [SEND_SCRIPT], { input: JSON.stringify(hookInput), env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` } });
+  for (let attempt = 0; attempt < 50 && !existsSync(doneFile); attempt += 1) await new Promise((resolve) => setTimeout(resolve, 100));
+  const curlArgs = readFileSync(argsFile, 'utf8');
+  assert.ok(curlArgs.includes('--data-binary'));
+  assert.ok(!curlArgs.includes('11111111-2222-3333-4444-555555555555'));
+  assert.equal(JSON.parse(readFileSync(stdinFile, 'utf8')).p_key, '11111111-2222-3333-4444-555555555555');
 });

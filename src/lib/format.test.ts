@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { formatTokens, pageTitle, formatRelativeTime, exactTime, describeAction, folderName, tabIndicator, faviconHref, describeSessionTokens, describeCallGroup } from './format';
+import { formatTokens, pageTitle, formatRelativeTime, exactTime, describeAction, folderName, tabIndicator, faviconHref, describeSessionTokens } from './format';
 
 test('números abaixo de mil aparecem inteiros', () => {
   assert.deepEqual([formatTokens(0), formatTokens(999)], ['0', '999']);
@@ -67,13 +67,6 @@ test('pasta pelo nome final', () => {
 
 test('painel mostra tokens de hoje e da sessão inteira', () => {
   assert.equal(describeSessionTokens({ day: { primary: 60000 }, total: { primary: 160000 } }), 'hoje: 60 mil · sessão inteira: 160 mil');
-});
-
-test('resumo do agente', () => {
-  const group = { callCount: 3, tokens: { primary: 45000 }, sessionShare: 0.25, rejectedCount: 1 };
-  assert.equal(describeCallGroup(group), '3 chamadas · total 45 mil · 25% da sessão · 1 reprovou');
-  assert.equal(describeCallGroup({ ...group, callCount: 1, sessionShare: null, rejectedCount: 2 }), '1 chamada · total 45 mil · 2 reprovaram');
-  assert.equal(describeCallGroup({ ...group, rejectedCount: 0 }), '3 chamadas · total 45 mil · 25% da sessão');
 });
 
 test('ícone da aba: com ponto só quando há "sua vez" recente', () => {

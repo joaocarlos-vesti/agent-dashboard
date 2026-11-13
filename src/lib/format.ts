@@ -1,5 +1,5 @@
 import { localParts } from './day';
-import type { CallGroup, Session, Tokens } from './types';
+import type { Session, Tokens } from './types';
 
 const UNITS = [
   { from: 1e3, label: 'mil' },
@@ -91,12 +91,3 @@ export const faviconHref = (dot: boolean): string =>
   `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">${FAVICON_BASE}${dot ? FAVICON_DOT : ''}</svg>`)}`;
 
 export const describeSessionTokens = ({ day, total }: { day: Pick<Tokens, 'primary'>; total: Pick<Tokens, 'primary'> }): string => `hoje: ${formatTokens(day.primary)} · sessão inteira: ${formatTokens(total.primary)}`;
-
-export function describeCallGroup({ callCount, tokens, sessionShare, rejectedCount }: Pick<CallGroup, 'callCount' | 'sessionShare' | 'rejectedCount'> & { tokens: Pick<Tokens, 'primary'> }): string {
-  return [
-    `${callCount} ${callCount === 1 ? 'chamada' : 'chamadas'}`,
-    `total ${formatTokens(tokens.primary)}`,
-    sessionShare == null ? null : `${Math.round(sessionShare * 100)}% da sessão`,
-    rejectedCount > 0 ? `${rejectedCount} ${rejectedCount === 1 ? 'reprovou' : 'reprovaram'}` : null,
-  ].filter(Boolean).join(' · ');
-}

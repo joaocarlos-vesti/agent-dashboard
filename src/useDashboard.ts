@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session as AuthSession } from '@supabase/supabase-js';
+import { useLatestRef } from './hooks/useLatestRef';
 import { supabase } from './supabase';
 import { BROWSER_TIME_ZONE } from './config';
 import { supabaseEventSource } from './eventSource';
@@ -29,8 +30,7 @@ export function useDashboard(viewedDay?: string, onLiveEvent?: (insertedEvent: A
   const [retryCount, setRetryCount] = useState(0);
   const [isLive, setIsLive] = useState(true);
   const latestLoad = useRef(0);
-  const liveEventListener = useRef(onLiveEvent);
-  liveEventListener.current = onLiveEvent;
+  const liveEventListener = useLatestRef(onLiveEvent);
   const knownSessions = useRef(new Set<string>());
   const sessionHistories = useRef(new Map<string, Promise<AgentEvent[]>>());
   const [now, setNow] = useState(() => Date.now());
