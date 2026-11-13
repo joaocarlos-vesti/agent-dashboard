@@ -2,3 +2,4 @@ node_modules
 .vercel
 dist
 public/send.sh
+docs/design/uso-30-dias.json
