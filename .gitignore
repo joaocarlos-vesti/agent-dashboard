@@ -3,3 +3,4 @@ node_modules
 dist
 public/send.sh
 docs/design/uso-30-dias.json
+scripts/saida/
