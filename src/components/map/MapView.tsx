@@ -8,6 +8,7 @@ import type { CollapsibleGroupId, VisibleItem } from '../../lib/map-tree';
 import type { MapScene } from '../../lib/map-scene';
 import type { EdgeSpark } from '../../lib/motion';
 import { CardNodeView, GroupNodeView, MoreNodeView, type CardNode, type GroupNode, type MoreNode } from './MapNodes';
+import { SparkLayer } from './SparkLayer';
 import { TreeEdgeView, type TreeEdgeType } from './TreeEdge';
 
 const NODE_TYPES = { card: CardNodeView, group: GroupNodeView, more: MoreNodeView };
@@ -15,7 +16,6 @@ const EDGE_TYPES = { tree: TreeEdgeView };
 const HEIGHT_TOLERANCE_PX = 0.5;
 const FOCUS_ZOOM = 1;
 const PAN_MARGIN = 400;
-const NO_SPARKS: EdgeSpark[] = [];
 
 export interface MapActions {
   onActivateCard: (card: CardModel) => void;
@@ -52,13 +52,13 @@ function nodeOf(item: VisibleItem, scene: MapScene, selectedId: string | null, a
   return card ? { ...base, type: 'card', data: { card, selected: selectedId === item.id, onActivate: actions.onActivateCard, onToggle: actions.onToggleCard, onHeight: actions.reportHeight } } : null;
 }
 
-function toFlowElements(layout: MapLayout, nodes: MapNode[], heights: Record<string, number>, sparks: Record<string, EdgeSpark[]>): { nodes: Node[]; edges: Edge[] } {
+function toFlowElements(layout: MapLayout, nodes: MapNode[], heights: Record<string, number>): { nodes: Node[]; edges: Edge[] } {
   return {
     nodes: nodes.flatMap((node) => {
       const placed = layout.placed[node.id];
       return placed ? [{ ...node, position: { x: placed.x, y: placed.y }, width: placed.width, height: heights[node.id] }] : [];
     }),
-    edges: layout.edges.map((edge): TreeEdgeType => ({ id: edge.id, source: edge.sourceId, target: edge.targetId, type: 'tree', data: { path: edge.path, line: edge.line, sparks: sparks[edge.id] ?? NO_SPARKS }, selectable: false, focusable: false })),
+    edges: layout.edges.map((edge): TreeEdgeType => ({ id: edge.id, source: edge.sourceId, target: edge.targetId, type: 'tree', data: { path: edge.path, line: edge.line }, selectable: false, focusable: false })),
   };
 }
 
@@ -89,7 +89,7 @@ function MapCanvas({ scene, orientation, selectedId, focusNonce, frozen, sparks,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [scene, selectedId, reportHeight],
   );
-  const { nodes, edges } = useMemo(() => toFlowElements(layout, mapNodes, heights, sparks), [layout, mapNodes, heights, sparks]);
+  const { nodes, edges } = useMemo(() => toFlowElements(layout, mapNodes, heights), [layout, mapNodes, heights]);
 
   // O clique na faixa de atenção leva o mapa até o card (depois de abrir o que o escondia).
   useEffect(() => {
@@ -126,6 +126,7 @@ function MapCanvas({ scene, orientation, selectedId, focusNonce, frozen, sparks,
           colorMode="dark"
           aria-label="Mapa das sessões"
         >
+          <SparkLayer edges={layout.edges} sparks={sparks} />
           <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} color="#26262B" />
         </ReactFlow>
       </div>

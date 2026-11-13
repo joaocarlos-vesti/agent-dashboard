@@ -11,7 +11,15 @@
 .tree-edge { stroke-width: 1.5; }
 .tree-edge--flow { stroke: var(--brand); stroke-width: 1.8; stroke-dasharray: 3 7; animation: edge-flow 700ms linear infinite; }
 @keyframes edge-flow { to { stroke-dashoffset: -10; } }
-.tree-spark { pointer-events: none; }
+.spark-layer { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.tree-spark { pointer-events: none; opacity: 0; offset-rotate: 0deg; animation: spark-run 900ms linear both; }
+.tree-spark--back { animation-direction: reverse; }
+@keyframes spark-run {
+  0% { offset-distance: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
 .tree-spark--action { fill: var(--brand-light); filter: drop-shadow(0 0 4px var(--brand)); }
 .tree-spark--done { fill: var(--teal); filter: drop-shadow(0 0 4px var(--teal)); }
 .tree-edge--dashed { stroke: #5a5a63; stroke-dasharray: 3 7; }

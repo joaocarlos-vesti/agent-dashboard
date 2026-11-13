@@ -49,3 +49,13 @@ Alterados: `card-model`, `format`, `header-model`, `connect-flow` (+ testes), `u
 
 - Cabeçalho em 420 px (3 linhas): não tratado, fora das medidas de projeto (1440 e 720).
 - Conferência visual (cores, ritmo das animações) e reconexão ao virar o dia no navegador real.
+
+## Rodada 2
+
+| Achado | O que foi feito |
+|---|---|
+| BLOQUEANTE: faísca SMIL parada em linha montada há mais de 1 s | Troquei `animateMotion` por CSS (`offset-path` + `@keyframes spark-run`, `animation-delay` escalona as linhas, `animation-direction: reverse` na volta). Medi também que as linhas do React Flow são recriadas a cada batida do relógio (o `<g>` da linha troca a cada segundo), o que reiniciava a faísca mesmo em CSS; por isso as faíscas saíram das linhas e vão numa camada própria (`SparkLayer`, `ViewportPortal`), que não é recriada. |
+| MENORES (2) | Não apliquei: o arquivo `docs/fases/revisoes/F4-logica-r1.md` não existe na worktree, então não sei quais são. Pendente: reenviar o arquivo ou os dois itens. |
+
+Prova no DOM (Chrome sem cabeça, página de teste com Supabase falso, apagada), com as linhas montadas há mais de 4 s: a faísca nova tem `getAnimations()` com `playState: running` e `currentTime` ~30 ms ao nascer, avança 100 ms a cada 100 ms, o círculo se move pela linha (x de 247 a 293 na primeira linha), termina em 1250 ms (900 ms + 350 ms de atraso) e fica no mesmo elemento durante todo o percurso. A faísca verde percorre as linhas de volta (do agente para a sessão). Antes da correção, o elemento era recriado a cada ~1 s e o tempo voltava a ~50 ms.
+Verificações: `npm test` 394 verdes, `npx tsc --noEmit` limpo, `npx vite build` ok.
