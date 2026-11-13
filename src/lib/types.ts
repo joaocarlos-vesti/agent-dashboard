@@ -18,6 +18,17 @@ export interface AgentEvent {
   output_tokens?: number | null;
   cache_creation_tokens?: number | null;
   cache_read_tokens?: number | null;
+  tokens_by_model?: Record<string, TokenColumns> | null;
+  duration_ms?: number | null;
+  prompt_id?: string | null;
+  occurred_at?: string | null;
+}
+
+export interface TokenColumns {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
 }
 
 export interface Tokens {

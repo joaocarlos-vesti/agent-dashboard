@@ -8,15 +8,19 @@ source "$HOME/.agent-dashboard/config" 2>/dev/null
 input=$(cat)
 
 # Soma o uso das respostas do assistente; a mesma resposta aparece em várias linhas com o mesmo message.id.
+# Além do total, separa por modelo (linhas sem modelo ou "<synthetic>" ficam fora da separação).
 sum_transcript_tokens() {
   grep -F '"usage"' "$1" | jq -sc '
+    def totals: {input_tokens: (map(.input_tokens // 0) | add // 0),
+                 output_tokens: (map(.output_tokens // 0) | add // 0),
+                 cache_creation_tokens: (map(.cache_creation_input_tokens // 0) | add // 0),
+                 cache_read_tokens: (map(.cache_read_input_tokens // 0) | add // 0)};
     map(select(.type == "assistant" and .message.usage != null))
     | unique_by(.message.id // .uuid)
-    | map(.message.usage)
-    | {input_tokens: (map(.input_tokens // 0) | add // 0),
-       output_tokens: (map(.output_tokens // 0) | add // 0),
-       cache_creation_tokens: (map(.cache_creation_input_tokens // 0) | add // 0),
-       cache_read_tokens: (map(.cache_read_input_tokens // 0) | add // 0)}' 2>/dev/null
+    | map(.message) as $messages
+    | ($messages | map(.usage) | totals)
+      + {tokens_by_model: ($messages | map(select(.model != null and .model != "<synthetic>")) | group_by(.model)
+                           | map({key: .[0].model, value: (map(.usage) | totals)}) | from_entries)}' 2>/dev/null
 }
 
 dashboard_event=$(printf '%s' "$input" | jq -c '
@@ -28,9 +32,14 @@ dashboard_event=$(printf '%s' "$input" | jq -c '
     | ([$flat | match("VEREDITO:\\s*\\**\\s*(REPROVADO|APROVADO)"; "g")] | last) as $verdict
     | if $verdict != null and $verdict.captures[0].string == "REPROVADO" and $verdict.offset >= 160 then $flat[$verdict.offset:] else $flat end;
   def run_id_in(text): (text // "") | (capture("(?<id>wf_[A-Za-z0-9-]+)")? // {}) | .id;
+  # Hora do evento gerada no envio, em UTC com milissegundos.
+  def now_iso: now as $t | ($t | floor | strftime("%Y-%m-%dT%H:%M:%S")) + "." + ((($t * 1000 | floor) % 1000 | tostring) | ("000" + .)[-3:]) + "Z";
   .hook_event_name as $name
   | {
       session_id, cwd, event: $name, agent_id, agent_type, tool: .tool_name,
+      duration_ms: (if $name == "PostToolUse" then .duration_ms else null end),
+      prompt_id: (if $name == "UserPromptSubmit" or $name == "Stop" then .prompt_id else null end),
+      occurred_at: now_iso,
       workflow_name: (.tool_response.workflowName? // null),
       workflow_run_id: (
         if $name == "PostToolUse" then .tool_response.runId?

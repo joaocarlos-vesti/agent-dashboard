@@ -57,6 +57,65 @@ test('Stop soma o uso da conversa principal contando cada resposta uma vez', () 
   assert.deepEqual(tokensIn(event), EXPECTED_TOKENS);
 });
 
+const modelLine = (messageId: string, model: string | undefined, tokenUsage: TokenUsage) =>
+  JSON.stringify({ type: 'assistant', message: { id: messageId, ...(model ? { model } : {}), usage: tokenUsage } });
+const transcriptWithTwoModels = () => writeTranscript([
+  modelLine('msg_1', 'claude-opus-5-5', usage(2, 100, 1000, 5000)),
+  modelLine('msg_1', 'claude-opus-5-5', usage(2, 100, 1000, 5000)),
+  modelLine('msg_2', 'claude-sonnet-5-5', usage(3, 50, 200, 6000)),
+  modelLine('msg_3', 'claude-opus-5-5', usage(1, 10, 20, 30)),
+  modelLine('msg_4', '<synthetic>', usage(0, 0, 0, 0)),
+  modelLine('msg_5', undefined, usage(0, 0, 0, 0)),
+]);
+const tokensByModelOf = (event: Record<string, unknown>) => event.tokens_by_model as Record<string, TokenColumns>;
+
+test('Stop envia os tokens separados por modelo, contando cada resposta uma vez e ignorando <synthetic> e linhas sem modelo', () => {
+  const event = sendThroughHook({ hook_event_name: 'Stop', session_id: 's1', transcript_path: transcriptWithTwoModels() });
+  assert.deepEqual(tokensByModelOf(event), {
+    'claude-opus-5-5': { input_tokens: 3, output_tokens: 110, cache_creation_tokens: 1020, cache_read_tokens: 5030 },
+    'claude-sonnet-5-5': { input_tokens: 3, output_tokens: 50, cache_creation_tokens: 200, cache_read_tokens: 6000 },
+  });
+});
+
+test('SubagentStop também envia os tokens por modelo', () => {
+  const event = sendThroughHook({ hook_event_name: 'SubagentStop', session_id: 's1', agent_id: 'a1', agent_transcript_path: transcriptWithTwoModels() });
+  assert.deepEqual(Object.keys(tokensByModelOf(event)).sort(), ['claude-opus-5-5', 'claude-sonnet-5-5']);
+});
+
+test('as quatro colunas totais continuam iguais à soma dos modelos', () => {
+  const event = sendThroughHook({ hook_event_name: 'Stop', session_id: 's1', transcript_path: transcriptWithTwoModels() });
+  assert.deepEqual(tokensIn(event), { input_tokens: 6, output_tokens: 160, cache_creation_tokens: 1220, cache_read_tokens: 11030 });
+});
+
+test('evento sem transcript não leva tokens_by_model', () => {
+  const event = sendThroughHook({ hook_event_name: 'Stop', session_id: 's1', transcript_path: '/nao/existe.jsonl' });
+  assert.equal('tokens_by_model' in event, false);
+});
+
+test('PostToolUse envia a duração da ferramenta', () => {
+  const event = sendThroughHook({ hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'Bash', duration_ms: 1234 });
+  assert.equal(event.duration_ms, 1234);
+});
+
+test('UserPromptSubmit e Stop enviam o prompt_id', () => {
+  const submitted = sendThroughHook({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: 'oi', prompt_id: 'p-1' });
+  const stopped = sendThroughHook({ hook_event_name: 'Stop', session_id: 's1', prompt_id: 'p-1' });
+  assert.deepEqual([submitted.prompt_id, stopped.prompt_id], ['p-1', 'p-1']);
+});
+
+test('duração e prompt_id só vão nos eventos que os trazem', () => {
+  const event = sendThroughHook({ hook_event_name: 'Notification', session_id: 's1', duration_ms: 5, prompt_id: 'p-1' });
+  assert.deepEqual([event.duration_ms, event.prompt_id], [null, null]);
+});
+
+test('todo evento leva occurred_at em ISO UTC com milissegundos, da hora do envio', () => {
+  const before = Date.now();
+  const event = sendThroughHook({ hook_event_name: 'Notification', session_id: 's1' });
+  const occurredAt = String(event.occurred_at);
+  assert.match(occurredAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.ok(Math.abs(Date.parse(occurredAt) - before) < 5000);
+});
+
 test('Notification envia o tipo e a mensagem no resumo', () => {
   const event = sendThroughHook({
     hook_event_name: 'Notification', session_id: 's1', notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash',

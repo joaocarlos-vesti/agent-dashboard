@@ -23,6 +23,10 @@ create table events (
   output_tokens bigint,
   cache_creation_tokens bigint,
   cache_read_tokens bigint,
+  tokens_by_model jsonb,
+  duration_ms bigint,
+  prompt_id text,
+  occurred_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index events_created_at on events (created_at desc);
@@ -71,11 +75,13 @@ begin
   select login into owner from ingest_keys where key = p_key;
   if owner is null then raise exception 'invalid_key'; end if;
   insert into events (login, session_id, cwd, branch, event, agent_id, agent_type, workflow_run_id, workflow_name, tool, summary, task,
-                      input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens)
+                      input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
+                      tokens_by_model, duration_ms, prompt_id, occurred_at)
   values (owner, p_event->>'session_id', p_event->>'cwd', p_event->>'branch', p_event->>'event', p_event->>'agent_id', p_event->>'agent_type',
           p_event->>'workflow_run_id', p_event->>'workflow_name', p_event->>'tool', p_event->>'summary', p_event->>'task',
           (p_event->>'input_tokens')::bigint, (p_event->>'output_tokens')::bigint,
-          (p_event->>'cache_creation_tokens')::bigint, (p_event->>'cache_read_tokens')::bigint);
+          (p_event->>'cache_creation_tokens')::bigint, (p_event->>'cache_read_tokens')::bigint,
+          p_event->'tokens_by_model', (p_event->>'duration_ms')::bigint, p_event->>'prompt_id', (p_event->>'occurred_at')::timestamptz);
 end $$;
 
 -- Tokens dos últimos 7 dias locais, um valor por dia (nunca em percentual), sem contar a sessão duas vezes.
