@@ -146,9 +146,12 @@ Protótipo de referência: canvas "Painel de agentes", página "v2.2 — mapa vi
 - **Ações sobre os agentes** (parar, responder): a ferramenta observa, não controla.
 - **Comparar pessoas.**
 - **Replay** (linha do tempo arrastável): v2.
+- **Backlog da tela Consumo (13/11/2026):** uso por hora / ritmo de hoje; valores em dólar; comparar com o mês anterior (precisa de 30+ dias no `daily_usage`); clicar num dia para ver as sessões dele (agora viável com o `daily_usage`); experimento "general-purpose em Sonnet" (medir uso médio por execução e um sinal de qualidade, não o total da semana); replay do mapa.
 
 ### Mudança de escopo (12/11/2026)
 O ritmo de 10 min, as barras de chamadas e a semana por dia esticam o "sem gráficos" da v1. O dono decidiu manter: são indicadores de leitura instantânea, não gráficos de análise.
+
+**13/11/2026:** gráficos de consumo **entram** na aba Consumo (ver "Tela Consumo (v3)").
 
 ## Mudanças nos dados
 | Mudança | Situação |
@@ -396,6 +399,126 @@ Perguntas ao dono:
 Medido em 12/11: todo evento traz `cwd`, inclusive o de início; `--continue`/`--resume` mantêm o `session_id` e o `SessionStart` traz `source: "resume"`; `PreToolUse`/`PostToolUse` de subagente trazem `agent_id` e `agent_type`; tokens do agente só no `SubagentStop`, os da conversa a cada `Stop` (acumulado).
 
 Seguem supostos: formato real do `Notification`; identificador da sessão na nuvem para "Abrir a sessão".
+
+## Tela Consumo (v3)
+
+**Pedido do dono (13/11/2026):** nova tela principal "Consumo", desenhada no Claude Design com os dados reais dele. Fonte da verdade do visual: `docs/design/Painel-de-agentes-V2.html` (o pedido cita `docs/design/consumo/Consumo.dc.html`; o arquivo recebido é este). Formato do Claude Design (`{{ }}`, `<sc-for>`, `<sc-if>`): **não copiar o código**; portar para Vite + React + TS (`src/`; o pedido fala em "web/", é o mesmo app). A lógica JS do `renderVals()` pode ser reaproveitada nas regras puras. Nada implementado, sem commit nem push sem o OK do dono.
+
+### Mudança de escopo (13/11/2026)
+Os gráficos de consumo **entram** (uso por dia, minibarras da semana, barras de parte do uso). Isso substitui o "sem gráficos" da v1 só para a aba Consumo; o mapa "Ao vivo" segue igual.
+
+### 1. Estrutura
+- Duas abas no cabeçalho: **Consumo** (nova tela inicial) e **Ao vivo** (mapa v2.2 atual, sem mudanças). O botão "sua vez"/"aguardando você" continua no cabeçalho das duas.
+- Tema claro e escuro, botão de sol/lua no cabeçalho. Todas as cores viram variáveis CSS (tokens); a tabela completa dos dois temas está no objeto `TEMAS` do protótipo.
+
+### 2. Unidade e regras de cálculo
+- **Uso ponderado**, em mi (milhões): entrada ×1, saída ×5, cache criado ×1,25, cache lido ×0,1. Subtítulo: "mi = milhões de tokens ponderados". Sem dólar.
+- Só **dias fechados** recebem julgamento. Hoje aparece como "até agora", sem comparação.
+- **Faixa normal** = p25 a p75 dos últimos 14 dias com uso (dias sem uso ficam fora). **Dia típico** = mediana desses mesmos dias.
+- **Semana** de segunda a domingo, comparada "até o mesmo dia da semana" (seg–qui contra seg–qui da anterior).
+- **Sessões contam inteiras** em qualquer período que tocarem. No filtro de 7 dias, aviso: "Sessões que tocaram os 7 dias entram inteiras nas listas abaixo."
+
+### 3. A tela, de cima para baixo
+1. **Três cartões:**
+   - *Ontem*: "Dentro/Acima/Abaixo do normal" + "1,1× o seu dia típico" + valor; embaixo "Hoje, até agora: X · a comparação sai amanhã".
+   - *Esta semana*: "17% acima da semana passada no mesmo ponto (205 mi contra 175 mi…)" + 3 minibarras (duas últimas semanas completas + a atual, hachurada), com linha onde a semana passada estava no mesmo ponto. Semanas incompletas do início do histórico ficam de fora. Texto alternativo com os valores.
+   - *Últimos 30 dias*: total + "N dias com uso" + linha de modelos ("Opus em 91% do uso e em 88% das execuções de agente").
+2. **Detalhes do período** com seletor 7 dias / 30 dias; afeta só o que vem abaixo.
+3. **O que chama atenção**: no máximo 2 linhas (número + frase + link de texto), só quando passa do limite:
+   - sessões abertas por mais de 24 h ≥ 50% do uso ("81% do uso veio de 11 sessões deixadas abertas por mais de 24 h · juntas somam 873 pedidos · ver sessões");
+   - general-purpose ≥ 50% do gasto com agentes, comparado à mediana por execução dos agentes do plugin (tipos com ":" e 3+ execuções).
+   O número não se repete dentro da frase.
+4. **Uso por dia**: uma barra por dia; cor pela faixa: acima = `dadoForte`, dentro = `dado`, abaixo = `dadoFraco`; hoje hachurado. Faixa com linhas tracejadas + preenchimento leve. Rótulos nas segundas e nos dois extremos. O pico **não** ganha destaque; uma anotação de texto visível e lida pelo leitor de tela explica o pico quando houver (alinhada à direita na metade direita). "Ver como tabela" logo abaixo.
+5. **Sessões que mais usaram** (6 maiores): nome; datas e pedidos; parte do uso numa barra (conversa principal = `dado`, subagentes = `texto`); se ficou aberta > 24 h; custo por pedido, destacado só a partir do p90. Modelo só quando não é Opus.
+6. **Com atividade hoje**: parte de cada sessão entre elas + valor + "N× a sua sessão típica". Menores que 5% omitidas, com contagem.
+7. **Agentes por tipo** (5 maiores): tipo, modelo com divisão quando há mais de um ("Opus 92% · Sonnet 5% · Haiku 3%"), parte do uso, duração típica (mediana), uso por execução.
+8. **Execuções de agente mais caras** (3 maiores), modelo em etiqueta e nº de respostas.
+9. **Agentes que mais demoram**: 3 tipos com maior duração típica (3+ execuções). Nota: a duração inclui esperas pela permissão; informa a resposta típica do Claude.
+10. **"O que é uso ponderado"** (recolhido): pesos e composição (contexto relido / contexto novo / respostas).
+
+### 4. Cores, tipografia e acessibilidade
+- Dados na escala terracota (`dado`, `dadoForte`, `dadoFraco`, `dadoFundo`). No tema claro a escala se inverte: "acima" é o terracota mais escuro.
+- Âmbar só para "aguardando você"; violeta = REPROVADO; azul = rodando; verde = concluído. Nenhuma entra nos gráficos de consumo.
+- Geist com números tabulares; tamanhos 12/13/14/16/24; pesos 400/500/600; nada abaixo de 12 px; sem caixa alta.
+- Nada só no hover; seções com `aria-labelledby`; abaixo de 900 px os grids viram uma coluna.
+
+### 5. Dados: o que existe e o que falta (corrigido com o estado real em 13/11)
+O pedido estava desatualizado nestes pontos; vale o que segue:
+- **Já existe:** tokens por modelo, `duration_ms`, `prompt_id`, `occurred_at` (`f4b5952`, migration 006).
+- **`daily_usage` já existe e está em produção** (migration `007_resumo_diario.sql`, `29b5225`): uma linha por pessoa × dia × sessão × agente × modelo, com os 4 tipos de token, chamadas, duração. Cron às 03:00 (São Paulo). Histórico local de 22/10 a 11/11 carregado (124 linhas). **Ele já divide cada sessão pela hora de cada resposta** (`occurred_at`, ou `created_at` quando falta); medido: sessão `9fba41bd` aparece em 07, 08 e 09/11. Sem guardar por hora (descartado).
+- **O pico de 07/11 do protótipo** vem do bloco `porSessao` do próprio arquivo de design (sessão com início em 07/11); no banco ele não acontece. A anotação do gráfico (item 3.4) só aparece se um pico real precisar de explicação.
+- **Hoje até agora:** o resumo roda só para dias fechados; "hoje" vem direto dos eventos, com a mesma ponderação.
+- **Branch:** já é enviada no `SessionStart` desde a F2 (`hook/send.sh` linhas 65–67) e fica em `events.branch`. **Falta:** guardar a branch no `daily_usage` e no histórico local (os transcripts têm `gitBranch` em cada linha) e usá-la como nome da sessão. Sessões anteriores a 12/11 não têm branch no banco; sem backfill, aparecem como "pasta · código".
+- **"Com atividade hoje"** = sessões com algum evento hoje (mesmo critério da aba Ao vivo).
+- **Duração de agente** (início → fim) é instável quando a sessão é retomada: só a mediana por tipo, nunca uma execução isolada.
+- **Pendente:** teste do `/usage` para saber se o cache conta no limite do plano; pode mudar qual número é o principal.
+
+### 6. Simplificações do protótipo que NÃO vão para o produto
+Datas fixas (hoje = 13/11), dados embutidos no arquivo, o texto "na quinta" fixo, e o "terminou há 4 min" do cabeçalho (ilustrativo).
+
+### Matriz de testes — Consumo (regras de negócio, TDD em `src/lib`)
+| # | Regra | Entrada → saída |
+|---|---|---|
+| C1 | Uso ponderado | entrada 1.000.000, saída 0, cache criado 0, lido 0 → 1,0 mi; saída 200.000 → 1,0 mi; cache criado 800.000 → 1,0 mi; cache lido 10.000.000 → 1,0 mi; tudo zero → 0 |
+| C2 | Formato mi | 205.400.000 ponderados → "205 mi"; 1.150.000 → "1,2 mi" (vírgula, pt-BR); 0 → "0 mi" |
+| C3 | Dia fechado | hoje = 13/11 → 13/11 é "até agora" e não tem veredito; 12/11 tem veredito |
+| C4 | Faixa normal | 14 dias com uso [1..14] → p25 e p75 pelo mesmo método do `renderVals()`; dias com 0 no meio não entram; só 20 dias de calendário com 10 com uso → usa os 10 |
+| C5 | Mediana / dia típico | [3,1,2] → 2; [1,2,3,4] → 2,5; ontem 11 com típico 10 → "1,1× o seu dia típico" |
+| C6 | Veredito de ontem | ontem > p75 → "Acima do normal"; = p75 → "Dentro"; < p25 → "Abaixo"; ontem sem uso → "Abaixo" com valor 0 |
+| C7 | Poucos dias | menos de N dias com uso (pergunta P2) → sem veredito, texto "ainda juntando histórico" |
+| C8 | Semana até o mesmo dia | hoje quinta: seg–qua(+ hoje até agora) desta semana contra seg–qui da passada; 205 vs 175 → "17% acima"; iguais → "igual"; passada = 0 → sem percentual |
+| C9 | Minibarras | histórico começa numa quarta → essa semana incompleta fica fora; linha "mesmo ponto" = soma da passada até o dia equivalente |
+| C10 | Sessões inteiras no período | sessão de 05 a 09/11, filtro 7 dias com início em 07/11 → entra com o total dos 5 dias; sessão só em 01/11 → fora |
+| C11 | Chama atenção (24 h) | sessões > 24 h com 50% do uso → aparece; 49,9% → some; sessão de exatamente 24 h → não conta como "> 24 h" |
+| C12 | Chama atenção (general-purpose) | GP com 50% do gasto com agentes e tipos ":" com 3+ execuções → aparece com a comparação de medianas; nenhum tipo ":" com 3+ → linha some (pergunta P4); 49% → some |
+| C13 | Máx. 2 linhas e número sem repetição | 3 alertas → mostra 2 (ordem do protótipo); frase gerada não contém o número destacado |
+| C14 | Custo por pedido p90 | 10 sessões, custo/pedido [1..10] → só a de 10 (≥ p90) destacada; sessão com 0 pedidos → sem custo, sem destaque |
+| C15 | Omissão < 5% | partes [60, 36, 3, 1] → mostra 2, "2 sessões menores omitidas"; exatamente 5% → aparece |
+| C16 | N× a sessão típica | sessão de 30 com mediana 10 → "3× a sua sessão típica"; mediana 0 → sem o texto |
+| C17 | Divisão de modelos | só Opus → "Opus"; 92/5/3 → "Opus 92% · Sonnet 5% · Haiku 3%"; arredondamento soma 100 |
+| C18 | Modelo da sessão | só Opus → não mostra; Sonnet → mostra |
+| C19 | Mediana por tipo com 3+ | tipo com 2 execuções → fora dos "mais demoram"; 3 → entra; empate ordena por nome |
+| C20 | Top N | 8 sessões → 6 maiores; 4 tipos → mostra 4; nenhum → lista vazia |
+| C21 | Cor da barra | acima de p75 → `dadoForte`; entre → `dado`; abaixo de p25 → `dadoFraco`; hoje → hachurado sem cor de julgamento |
+| C22 | Rótulos do eixo | 30 dias → segundas + primeiro + último; extremo que é segunda não duplica |
+| C23 | Hoje até agora | eventos de hoje (fuso do membro) somados ponderados; evento de 23:59 de ontem → fora |
+| C24 | Nome da sessão | com branch → branch; sem branch → "pasta · código" |
+
+### Matriz de testes — Consumo (estados e interações)
+| # | Estado | Entrada → saída |
+|---|---|---|
+| S1 | Carregando | consultas pendentes → esqueleto dos cartões, sem números falsos |
+| S2 | Erro | falha do Supabase "permission denied for table daily_usage" → mensagem real + "Tentar de novo"; a aba Ao vivo segue funcionando |
+| S3 | Vazio | `daily_usage` sem linhas e nenhum evento hoje → "Ainda não há uso registrado", sem gráfico |
+| S4 | Pouco histórico | 3 dias com uso → cartão Ontem sem veredito; gráfico sem faixa; semana sem comparação |
+| S5 | Preenchido | fixture de 30 dias → os 10 blocos na ordem |
+| S6 | Seletor 7/30 | troca 30 → 7: cartões não mudam; blocos abaixo mudam; aviso das sessões inteiras aparece só em 7 |
+| S7 | Tema | sol/lua alterna; escolha persiste ao recarregar; escala terracota invertida no claro |
+| S8 | < 900 px | grids em uma coluna, sem rolagem horizontal |
+| S9 | Abas | Consumo é a inicial; Ao vivo mostra o mapa sem mudanças; botão "aguardando você" nas duas |
+| S10 | Acessibilidade | "Ver como tabela" mostra os mesmos valores; minibarras com texto alternativo; seções com `aria-labelledby`; recolhido abre por teclado |
+
+### Plano em etapas (cada uma testável sozinha)
+| Etapa | O que | Arquivos e porquê | Tamanho |
+|---|---|---|---|
+| E1 | Tokens de tema, claro/escuro, abas Consumo / Ao vivo | CSS de tokens (cores do `TEMAS` como variáveis, para os dois temas sem duplicar componente); `src/lib/ui-state.ts` (tema e aba escolhidos, com teste); `src/components/chrome/Header.tsx` (abas e sol/lua); `src/App.tsx` (troca de aba) | Médio, 4–6 h |
+| E2 | Dados | `src/lib/queries.ts` (ler `daily_usage` e os eventos de hoje); migration 008 (coluna `branch` no `daily_usage` + preencher pela `events.branch`); script do histórico local lê `gitBranch` dos transcripts; `src/lib/types.ts` | Médio, 5–7 h |
+| E3 | Regras puras (TDD, C1–C24) | `src/lib/consumo.ts` + `consumo.test.ts` (ponderação, faixa, semana, períodos, alertas, listas); `src/lib/format.ts` (formato mi) | Grande, 8–10 h |
+| E4 | Cartões + "O que chama atenção" | `src/components/consumo/` (um componente por cartão, só recebem props) | Médio, 4–5 h |
+| E5 | Gráfico por dia + tabela | `src/components/consumo/` (SVG próprio, faixa, hachura, anotação, "Ver como tabela") | Médio, 5–6 h |
+| E6 | Listas: sessões, hoje, agentes, "O que é uso ponderado" | `src/components/consumo/` | Médio, 5–6 h |
+| E7 | Navegador e acessibilidade (S1–S10, celular, dois temas) | só correções que o teste apontar | Médio, 3–4 h |
+
+Total estimado: 34–44 h.
+
+**Riscos:** fórmula dos percentis do `renderVals()` diferente da usual (fixar a do protótipo no teste); fuso de "hoje" (usar `members.time_zone`); o resumo diário atrasar e deixar "ontem" vazio antes das 03:00 (ontem viria dos eventos até o cron rodar); sessões antigas sem branch; `/usage` pendente pode trocar o número principal; tokens de tema mexendo nas cores do Ao vivo (comparar telas antes/depois).
+
+### Perguntas ao dono
+1. **Ontem antes do resumo das 03:00** — Entre 00:00 e 03:00 o `daily_usage` ainda não tem ontem. Sugestão: calcular ontem pelos eventos até o resumo rodar. Pode?
+2. **Histórico mínimo para julgar** — Com poucos dias de uso a faixa p25–p75 engana. Sugestão: só dar veredito com 7+ dias com uso. Concorda com 7?
+3. **Branch das sessões antigas** — Antes de 12/11 o banco não tem branch, mas os transcripts locais têm `gitBranch`. Sugestão: preencher pelo histórico local no mesmo backfill. Faço o backfill?
+4. **Alerta general-purpose sem base de comparação** — Se nenhum agente do plugin tiver 3+ execuções no período, não há mediana para comparar. Sugestão: esconder a linha. Ok?
+5. **Tema padrão** — Sugestão: seguir o tema do sistema na primeira visita e lembrar a escolha depois. Ok?
 
 ## Andamento
 - 12/11/2026: base da v1 em `0664126` (main, sem push) e publicada; `002_v1.sql` rodado. Branch `feat/mapa-vivo-v2-2`.
