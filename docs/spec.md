@@ -464,13 +464,13 @@ Datas fixas (hoje = 13/11), dados embutidos no arquivo, o texto "na quinta" fixo
 | C3 | Dia fechado | hoje = 13/11 → 13/11 é "até agora" e não tem veredito; 12/11 tem veredito |
 | C4 | Faixa normal | 14 dias com uso [1..14] → p25 e p75 pelo mesmo método do `renderVals()`; dias com 0 no meio não entram; só 20 dias de calendário com 10 com uso → usa os 10 |
 | C5 | Mediana / dia típico | [3,1,2] → 2; [1,2,3,4] → 2,5; ontem 11 com típico 10 → "1,1× o seu dia típico" |
-| C6 | Veredito de ontem | ontem > p75 → "Acima do normal"; = p75 → "Dentro"; < p25 → "Abaixo"; ontem sem uso → "Abaixo" com valor 0 |
-| C7 | Poucos dias | menos de N dias com uso (pergunta P2) → sem veredito, texto "ainda juntando histórico" |
+| C6 | Veredito de ontem | ontem > p75 → "Acima do normal"; = p75 → "Dentro"; < p25 → "Abaixo"; ontem sem uso → "Abaixo" com valor 0; antes das 03:00 ontem vem do `compute_daily_usage` e aparece igual, sem selo de provisório |
+| C7 | Histórico mínimo (resp. 2) | 4 dias com uso nos últimos 14 → sem veredito, valor + "ainda aprendendo o seu normal · 4 de 7 dias" e faixa escondida; 7 → veredito e faixa; 10 dias com uso há 20 dias e 0 nos últimos 14 → volta a "0 de 7 dias" |
 | C8 | Semana até o mesmo dia | hoje quinta: seg–qua(+ hoje até agora) desta semana contra seg–qui da passada; 205 vs 175 → "17% acima"; iguais → "igual"; passada = 0 → sem percentual |
 | C9 | Minibarras | histórico começa numa quarta → essa semana incompleta fica fora; linha "mesmo ponto" = soma da passada até o dia equivalente |
 | C10 | Sessões inteiras no período | sessão de 05 a 09/11, filtro 7 dias com início em 07/11 → entra com o total dos 5 dias; sessão só em 01/11 → fora |
 | C11 | Chama atenção (24 h) | sessões > 24 h com 50% do uso → aparece; 49,9% → some; sessão de exatamente 24 h → não conta como "> 24 h" |
-| C12 | Chama atenção (general-purpose) | GP com 50% do gasto com agentes e tipos ":" com 3+ execuções → aparece com a comparação de medianas; nenhum tipo ":" com 3+ → linha some (pergunta P4); 49% → some |
+| C12 | Chama atenção (general-purpose) | GP com 50% do gasto com agentes e tipos ":" com 3+ execuções → aparece com a comparação de medianas; 49% → some; nenhum tipo ":" com 3+ → sem alerta e linha neutra junto a Modelos: "general-purpose: sem base de comparação ainda (precisa de 3+ execuções de agentes do plugin)" (resp. 4) |
 | C13 | Máx. 2 linhas e número sem repetição | 3 alertas → mostra 2 (ordem do protótipo); frase gerada não contém o número destacado |
 | C14 | Custo por pedido p90 | 10 sessões, custo/pedido [1..10] → só a de 10 (≥ p90) destacada; sessão com 0 pedidos → sem custo, sem destaque |
 | C15 | Omissão < 5% | partes [60, 36, 3, 1] → mostra 2, "2 sessões menores omitidas"; exatamente 5% → aparece |
@@ -481,8 +481,11 @@ Datas fixas (hoje = 13/11), dados embutidos no arquivo, o texto "na quinta" fixo
 | C20 | Top N | 8 sessões → 6 maiores; 4 tipos → mostra 4; nenhum → lista vazia |
 | C21 | Cor da barra | acima de p75 → `dadoForte`; entre → `dado`; abaixo de p25 → `dadoFraco`; hoje → hachurado sem cor de julgamento |
 | C22 | Rótulos do eixo | 30 dias → segundas + primeiro + último; extremo que é segunda não duplica |
-| C23 | Hoje até agora | eventos de hoje (fuso do membro) somados ponderados; evento de 23:59 de ontem → fora |
-| C24 | Nome da sessão | com branch → branch; sem branch → "pasta · código" |
+| C23 | Virada do dia | fuso America/Sao_Paulo: evento às 23:59 de 12/11 local (02:59 UTC de 13/11) → conta em 12/11; 00:01 local de 13/11 → hoje |
+| C25 | Um caminho de regra (resp. 1) | mesmo dia fechado: `compute_daily_usage` (eventos brutos) = linhas gravadas em `daily_usage`, campo a campo; chamar a função não grava nada |
+| C26 | Backfill da branch (resp. 3) | linha sem branch + transcript com `gitBranch` → preenche; linha já com branch → não muda; rodar 2 vezes → mesmo número de linhas |
+| C27 | Tema (resp. 5) | sem escolha salva → Sistema (segue o macOS); escolha Claro → salva e aplica; volta a Sistema → apaga a escolha e segue o macOS |
+| C24 | Nome da sessão (resp. 3) | com branch → branch; sem branch → "<projeto> · sem branch"; nunca o hash da sessão |
 
 ### Matriz de testes — Consumo (estados e interações)
 | # | Estado | Entrada → saída |
@@ -490,10 +493,12 @@ Datas fixas (hoje = 13/11), dados embutidos no arquivo, o texto "na quinta" fixo
 | S1 | Carregando | consultas pendentes → esqueleto dos cartões, sem números falsos |
 | S2 | Erro | falha do Supabase "permission denied for table daily_usage" → mensagem real + "Tentar de novo"; a aba Ao vivo segue funcionando |
 | S3 | Vazio | `daily_usage` sem linhas e nenhum evento hoje → "Ainda não há uso registrado", sem gráfico |
-| S4 | Pouco histórico | 3 dias com uso → cartão Ontem sem veredito; gráfico sem faixa; semana sem comparação |
+| S4 | Pouco histórico | 3 dias com uso → cartão Ontem com valor e "ainda aprendendo o seu normal · 3 de 7 dias" (12 px, texto apagado, nunca âmbar); gráfico sem faixa; semana sem comparação |
 | S5 | Preenchido | fixture de 30 dias → os 10 blocos na ordem |
 | S6 | Seletor 7/30 | troca 30 → 7: cartões não mudam; blocos abaixo mudam; aviso das sessões inteiras aparece só em 7 |
-| S7 | Tema | sol/lua alterna; escolha persiste ao recarregar; escala terracota invertida no claro |
+| S7 | Tema | radiogroup Sistema / Claro / Escuro com foco visível e setas; Sistema acompanha a troca do macOS ao vivo; recarregar com tema salvo não pisca; escala terracota invertida no claro; contraste 4,5:1 texto e 3:1 gráficos nos dois temas |
+| S11 | Sem branch e sem base | sessão sem branch → "sem branch" em 12 px apagado; sem base do general-purpose → linha neutra sem ícone; o "?" explica a regra |
+| S12 | Tela só lê | abrir a tela antes das 03:00 → nenhuma escrita no banco (só RPC de leitura) |
 | S8 | < 900 px | grids em uma coluna, sem rolagem horizontal |
 | S9 | Abas | Consumo é a inicial; Ao vivo mostra o mapa sem mudanças; botão "aguardando você" nas duas |
 | S10 | Acessibilidade | "Ver como tabela" mostra os mesmos valores; minibarras com texto alternativo; seções com `aria-labelledby`; recolhido abre por teclado |
@@ -501,24 +506,33 @@ Datas fixas (hoje = 13/11), dados embutidos no arquivo, o texto "na quinta" fixo
 ### Plano em etapas (cada uma testável sozinha)
 | Etapa | O que | Arquivos e porquê | Tamanho |
 |---|---|---|---|
-| E1 | Tokens de tema, claro/escuro, abas Consumo / Ao vivo | CSS de tokens (cores do `TEMAS` como variáveis, para os dois temas sem duplicar componente); `src/lib/ui-state.ts` (tema e aba escolhidos, com teste); `src/components/chrome/Header.tsx` (abas e sol/lua); `src/App.tsx` (troca de aba) | Médio, 4–6 h |
-| E2 | Dados | `src/lib/queries.ts` (ler `daily_usage` e os eventos de hoje); migration 008 (coluna `branch` no `daily_usage` + preencher pela `events.branch`); script do histórico local lê `gitBranch` dos transcripts; `src/lib/types.ts` | Médio, 5–7 h |
+| E1 | Tokens de tema, Sistema/Claro/Escuro, abas Consumo / Ao vivo | CSS de tokens (cores próprias por tema, contraste conferido); `src/lib/ui-state.ts` (tema e aba, com teste); `index.html` (script no `<head>` aplica o tema salvo antes de pintar); `src/components/chrome/Header.tsx` (abas e radiogroup); `src/App.tsx` (troca de aba) | Médio, 6–8 h |
+| E2 | Dados | migration 008: `compute_daily_usage` só de leitura extraída do `summarize_daily_usage` (que passa a usá-la), RPC para `authenticated` restrita ao próprio login, coluna `branch` no `daily_usage`; teste SQL de igualdade (C25); script de recuperação completa a branch pelos transcripts sem sobrescrever e sem duplicar (C26); `src/lib/queries.ts` (lê `daily_usage` + RPC para ontem antes do cron e hoje); `src/lib/types.ts` | Grande, 8–11 h |
 | E3 | Regras puras (TDD, C1–C24) | `src/lib/consumo.ts` + `consumo.test.ts` (ponderação, faixa, semana, períodos, alertas, listas); `src/lib/format.ts` (formato mi) | Grande, 8–10 h |
-| E4 | Cartões + "O que chama atenção" | `src/components/consumo/` (um componente por cartão, só recebem props) | Médio, 4–5 h |
+| E4 | Cartões + "O que chama atenção" | `src/components/consumo/` (um componente por cartão, só recebem props; "ainda aprendendo", linha neutra do general-purpose e o "?") | Médio, 5–6 h |
 | E5 | Gráfico por dia + tabela | `src/components/consumo/` (SVG próprio, faixa, hachura, anotação, "Ver como tabela") | Médio, 5–6 h |
 | E6 | Listas: sessões, hoje, agentes, "O que é uso ponderado" | `src/components/consumo/` | Médio, 5–6 h |
 | E7 | Navegador e acessibilidade (S1–S10, celular, dois temas) | só correções que o teste apontar | Médio, 3–4 h |
 
-Total estimado: 34–44 h.
+Total estimado: 40–52 h (revisto após as respostas de 13/11).
 
 **Riscos:** fórmula dos percentis do `renderVals()` diferente da usual (fixar a do protótipo no teste); fuso de "hoje" (usar `members.time_zone`); o resumo diário atrasar e deixar "ontem" vazio antes das 03:00 (ontem viria dos eventos até o cron rodar); sessões antigas sem branch; `/usage` pendente pode trocar o número principal; tokens de tema mexendo nas cores do Ao vivo (comparar telas antes/depois).
 
-### Perguntas ao dono
+### Perguntas ao dono (respondidas abaixo)
 1. **Ontem antes do resumo das 03:00** — Entre 00:00 e 03:00 o `daily_usage` ainda não tem ontem. Sugestão: calcular ontem pelos eventos até o resumo rodar. Pode?
 2. **Histórico mínimo para julgar** — Com poucos dias de uso a faixa p25–p75 engana. Sugestão: só dar veredito com 7+ dias com uso. Concorda com 7?
 3. **Branch das sessões antigas** — Antes de 12/11 o banco não tem branch, mas os transcripts locais têm `gitBranch`. Sugestão: preencher pelo histórico local no mesmo backfill. Faço o backfill?
 4. **Alerta general-purpose sem base de comparação** — Se nenhum agente do plugin tiver 3+ execuções no período, não há mediana para comparar. Sugestão: esconder a linha. Ok?
 5. **Tema padrão** — Sugestão: seguir o tema do sistema na primeira visita e lembrar a escolha depois. Ok?
+
+### Respostas do dono (13/11/2026)
+1. Ontem antes das 03:00 — SIM, com condições. Calcule ontem direto pelos eventos brutos, SÓ LEITURA e em memória, usando exatamente a MESMA função que o resumo diário usa (um caminho de regra, não duas implementações). A tela nunca escreve no banco ao ser aberta. Crie um teste que calcule um mesmo dia pelos eventos brutos e pelo resumo e exija resultados iguais. Sem selo de "provisório" na tela, porque a regra é a mesma. O dia vira à meia-noite no fuso do dev, não em UTC.
+2. Histórico mínimo — SIM, com ajustes. O mínimo de 7 dias com uso conta DENTRO da janela de 14 dias da faixa normal (se ele ficar duas semanas parado, o normal volta a "aprender"). Enquanto não tiver 7 dias: mostrar o valor e "ainda aprendendo o seu normal · 4 de 7 dias" (12 px, cor de texto apagado, nunca âmbar); esconder também a faixa p25–p75 do gráfico, porque ela é a mesma régua do veredito.
+3. Branch das sessões antigas — SIM. Preencha pelos registros locais no mesmo script de recuperação. Regras: só completa campos vazios, nunca sobrescreve o que já está no banco; o script pode rodar de novo sem duplicar nada. Sessão sem branch em lugar nenhum: mostrar "<projeto> · sem branch", com "sem branch" em 12 px na cor de texto apagado. Nunca mostrar o hash como nome.
+4. Alerta do general-purpose sem base — NÃO esconder. Esconder em silêncio faz "não dá para comparar" parecer "está tudo bem". No lugar do alerta, uma linha neutra junto à linha de Modelos: "general-purpose: sem base de comparação ainda (precisa de 3+ execuções de agentes do plugin)" 12 px, cor de texto apagado, sem ícone, sem âmbar. A mesma regra também fica explicada no "?" da tela.
+5. Tema inicial — SIM, com 3 opções. Controle com 3 opções: Sistema / Claro / Escuro (radiogroup acessível, com foco visível). O padrão é Sistema, acompanhando o macOS ao vivo, inclusive quando ele troca sozinho à noite. Depois que o dev escolher, lembrar a escolha; "Sistema" volta ao automático. Aplicar o tema salvo antes da primeira pintura (script no <head>), para a tela não piscar. Cada tema tem os próprios valores de cor para os mesmos significados (o âmbar #FFB547, por exemplo, não passa em contraste sobre branco), validados com 4,5:1 para texto e 3:1 para gráficos.
+
+**Como a resposta 1 vira código (condutor):** o cálculo do `summarize_daily_usage` sai para uma função SQL só de leitura, `compute_daily_usage(login, dia, ...)`, que devolve as linhas sem gravar. O resumo diário a usa para gravar; a tela a chama (RPC) para ler ontem antes do cron e hoje até agora. Liberada a `authenticated`, restrita ao próprio login. As respostas acima valem sobre as perguntas e as linhas das matrizes.
 
 ## Andamento
 - 12/11/2026: base da v1 em `0664126` (main, sem push) e publicada; `002_v1.sql` rodado. Branch `feat/mapa-vivo-v2-2`.
